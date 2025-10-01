@@ -1,0 +1,9 @@
+Name         Size   ImageType ImageName                Network       Address
+----         ----   --------- ---------                -------       -------
+vdi-20xzu7nk Medium Windows   Windows 11 23H2 Standard Internet Only 172.30.64.73
+
+RunspaceId  : 5b090dd4-16dc-4183-bc37-bd1a5a719125
+MachineName : vdi-20xzu7nk
+Type        : User
+Username    : vdiuser
+Password    : 2wUsSPZKh6vRtrN
