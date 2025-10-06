@@ -8,6 +8,9 @@ orcl2:/u01/app/oracle/product/19.0.0/db_1:Y
 
 [root@oraclesrv ~]# vi /usr/local/bin/start_oracle.sh
 #!/bin/bash
+#
+# Oracle autostart 1.2 Marko Mironoff Fujitsu Finland 6.10.2025
+#
 export ORACLE_HOME=/u01/app/oracle/product/19.0.0/db_1
 export PATH=$ORACLE_HOME/bin:$PATH
 # waiting for network adapter binding, vaihda tähän palvelimen ip
@@ -18,18 +21,21 @@ while  ! ip a | grep -q "$IP"; do
 done
 
 $ORACLE_HOME/bin/lsnrctl start
-$ORACLE_HOME/bin/lsnrctl start LISTENER_ORCL2
+#$ORACLE_HOME/bin/lsnrctl start LISTENER_ORCL2
 $ORACLE_HOME/bin/dbstart $ORACLE_HOME
 
 
 
 [root@oraclesrv ~]# vi /usr/local/bin/stop_oracle.sh
 #!/bin/bash
+#
+# Oracle autostart 1.2 Marko Mironoff Fujitsu Finland 6.10.2025
+#
 export ORACLE_HOME=/u01/app/oracle/product/19.0.0/db_1
 export PATH=$ORACLE_HOME/bin:$PATH
 $ORACLE_HOME/bin/dbshut $ORACLE_HOME
 $ORACLE_HOME/bin/lsnrctl stop
-$ORACLE_HOME/bin/lsnrctl stop LISTENER_ORCL2
+#$ORACLE_HOME/bin/lsnrctl stop LISTENER_ORCL2
 
 ##Oikeudet:
 
