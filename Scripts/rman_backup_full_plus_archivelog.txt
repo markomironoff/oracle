@@ -1,0 +1,7 @@
+run{
+ALLOCATE CHANNEL CH1 DEVICE TYPE DISK;
+BACKUP AS COMPRESSED BACKUPSET DATABASE FORMAT '/u01/app/oracle/backup/FULL_%d_%u_%s_%T.bkp';
+BACKUP AS COMPRESSED BACKUPSET ARCHIVELOG ALL not backed up 1 times FORMAT '/u01/app/oracle/backup/Archivelogs_%d_%u_%s_%T.bkp';
+BACKUP CURRENT CONTROLFILE FORMAT '/u01/app/oracle/backup/CONTROLFILE%d_%u_%s_%T.bkp';
+RELEASE CHANNEL CH1;
+}
