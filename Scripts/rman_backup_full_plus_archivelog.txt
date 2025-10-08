@@ -1,3 +1,4 @@
+#rman target / cmdfile=/home/oracle/rman_backup_full_plus_archivelog.sql log=/tmp/rman_$(date +%Y%m%d_%H%M).log"
 run{
 ALLOCATE CHANNEL CH1 DEVICE TYPE DISK;
 BACKUP AS COMPRESSED BACKUPSET DATABASE FORMAT '/u01/app/oracle/backup/FULL_%d_%u_%s_%T.bkp';
@@ -5,3 +6,4 @@ BACKUP AS COMPRESSED BACKUPSET ARCHIVELOG ALL not backed up 1 times FORMAT '/u01
 BACKUP CURRENT CONTROLFILE FORMAT '/u01/app/oracle/backup/CONTROLFILE%d_%u_%s_%T.bkp';
 RELEASE CHANNEL CH1;
 }
+EXIT;
