@@ -2,22 +2,25 @@
 # oracle_datapatch_runner.sh
 # Run datapatch on all running Oracle databases (excluding ASM)
 # Author: Marko Mironoff
-# Date: 18.9 2025
-# Version: 1.0
+# Date: 8.10 2025
+# Version: 1.1
 # Fully supports CDB/PDB for utlrp, invalid object counts, and latest patches
+# If you get error -bash: ./oracle_datapatch_runner_1.0.sh: /bin/bash^M: bad interpreter: No such file or directory
+# run dos2unix oracle_datapatch_runner_1.0.sh
 
 # Change log:
-# Version    Date        Author          Details
-# 0.1        17.9 2025   ChatGPT AI      First draft
-# 0.2        17.9 2025   ChatGPT AI      Added latest patch/timestamp check
-# 0.3        17.9 2025   ChatGPT AI      Show all patches from the last run
-# 0.4        17.9 2025   ChatGPT AI      Fixed phantom "sed" issue + ORACLE_HOME safety check
-# 0.5        17.9 2025   ChatGPT AI      Added PDB utlrp + invalid object count if CDB
-# 0.6        17.9 2025   ChatGPT AI      Run PDB utlrp.sql via SQL*Plus, not inside PL/SQL
-# 0.7        17.9 2025   ChatGPT AI      Fixed CDB detection bug and trimmed SQL*Plus output
-# 0.8        17.9 2025   ChatGPT AI      Added patch history per PDB
-# 0.9        18.9 2025   ChatGPT AI      Added summary at end
-# 1.0        18.9 2025   Marko Mironoff  Human Lab tested version
+# Version	Date			Author          Details
+# 0.1       17.09 2025   	ChatGPT AI      First draft
+# 0.2       17.09 2025   	ChatGPT AI      Added latest patch/timestamp check
+# 0.3       17.09 2025   	ChatGPT AI      Show all patches from the last run
+# 0.4       17.09 2025   	ChatGPT AI      Fixed phantom "sed" issue + ORACLE_HOME safety check
+# 0.5       17.09 2025   	ChatGPT AI      Added PDB utlrp + invalid object count if CDB
+# 0.6       17.09 2025   	ChatGPT AI      Run PDB utlrp.sql via SQL*Plus, not inside PL/SQL
+# 0.7       17.09 2025   	ChatGPT AI      Fixed CDB detection bug and trimmed SQL*Plus output
+# 0.8       17.09 2025   	ChatGPT AI      Added patch history per PDB
+# 0.9       18.09 2025   	ChatGPT AI      Added summary at end
+# 1.0       18.09 2025   	Marko Mironoff  Human Lab tested version
+# 1.1		08.10 2025		Marko Mironoff	bin/bash^M: bad interpreter bug fix
 
 LOGFILE="/tmp/oracle_datapatch_runner_$(date +%Y%m%d_%H%M%S).log"
 echo "==== Oracle Datapatch Runner started at $(date) ====" | tee -a $LOGFILE
