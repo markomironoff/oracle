@@ -1,0 +1,379 @@
+You can build a controlled scenario in a lab environment to study query plan changes and execution plan troubleshooting. 
+In fact, it’s one of the best ways to internalize these concepts. Here’s a structured way to do it:
+1️⃣ Set up a representative schema
+
+Create tables that mimic the structure of your production tables (e.g., AMS_CASE_S, DM_SYSOBJECT_S) including the primary keys and repeating
+attributes if relevant.
+
+Populate them with realistic but smaller test data—enough rows to make execution plans meaningful but not so large that your lab server chokes.
+
+CREATE TABLE ams_case_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    ams_responsibleorganisation VARCHAR2(2000),
+    ams_notes VARCHAR2(2000),
+    ...
+);
+
+CREATE TABLE dm_sysobject_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    i_has_folder NUMBER(1),
+    i_is_deleted NUMBER(1),
+    ...
+);
+
+
+Insert sample data with some repetitive patterns to simulate joins and filters.
+2️⃣ Create indexes selectively
+
+Add indexes like you were experimenting in production:
+
+CREATE INDEX idx_case_filter
+ON ams_case_s (ams_responsibleorganisation);
+
+CREATE INDEX idx_sysobject_filter
+ON dm_sysobject_s (i_has_folder, i_is_deleted);
+
+
+Compare performance with and without these indexes using EXPLAIN PLAN or DBMS_XPLAN.DISPLAY_CURSOR.
+3️⃣ Control statistics
+
+You can deliberately change table statistics to observe how the optimizer reacts:
+
+EXEC DBMS_STATS.GATHER_TABLE_STATS('SCHEMA_NAME','AMS_CASE_S', cascade=>TRUE);
+
+
+Then modify statistics (e.g., artificially lower NUM_DISTINCT or NUM_ROWS) to see plan changes.
+4️⃣ Introduce subtle changes
+
+Add new indexes, drop old ones, or tweak data distribution.
+
+Change optimizer parameters temporarily to simulate different execution plan choices:
+
+ALTER SESSION SET optimizer_mode = FIRST_ROWS;
+ALTER SESSION SET optimizer_index_cost_adj = 50;
+
+
+Run queries and capture execution plans to observe differences.
+5️⃣ Track plan changes
+
+Use DBMS_XPLAN.DISPLAY_CURSOR or DBA_HIST_SQLSTAT to capture plan history.
+
+Store snapshots of execution plans for comparison after each change.
+6️⃣ Experiment with plan forcing
+
+Learn SQL Profiles or SQL Plan Baselines:
+
+-- Capture current plan
+EXEC DBMS_SPM.CREATE_SQL_PLAN_BASELINE(
+    sql_handle => 'your_sql_handle',
+    plan_name => 'baseline_plan'
+);
+
+-- Force usage
+EXEC DBMS_SPM.ALTER_SQL_PLAN_BASELINE(
+    sql_handle => 'your_sql_handle',
+    plan_name => 'baseline_plan',
+    attribute_name => 'ENABLED',
+    attribute_value => 'YES'
+);
+
+
+This helps you test controlling optimizer behavior without touching production.
+💡 Benefits
+
+Safe experimentation without impacting production.
+
+See exactly how indexes, stats, and optimizer settings influence plan selection.
+
+Build intuition on why nested loops vs hash joins happen, why repeating tables are accessed the way they are, etc.
+
+Let’s set up a lab scenario that mirrors your Documentum tables and queries, so you can experiment with execution plans, indexes, and optimizer behavior safely. I’ll keep it fully self-contained for a local Oracle instance.
+
+1️⃣ Create tables
+-- Simulate AMS_CASE_S
+CREATE TABLE ams_case_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    ams_responsibleorganisation VARCHAR2(200),
+    ams_notes VARCHAR2(200),
+    i_partition NUMBER(10)
+);
+
+-- Simulate DM_SYSOBJECT_S (supertype repeating attributes)
+CREATE TABLE dm_sysobject_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    i_has_folder NUMBER(1),
+    i_is_deleted NUMBER(1)
+);
+
+-- Optional: another table to join, like AMS_FOLDER_S
+CREATE TABLE ams_folder_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    ams_responsibleorganisation VARCHAR2(200)
+);
+
+2️⃣ Populate tables with sample data
+-- AMS_CASE_S
+BEGIN
+    FOR i IN 1..100000 LOOP
+        INSERT INTO ams_case_s VALUES (
+            'CASE_' || i,
+            'Org_' || MOD(i, 50),
+            'Note_' || MOD(i, 20),
+            MOD(i, 10)
+        );
+    END LOOP;
+    COMMIT;
+END;
+/
+
+-- DM_SYSOBJECT_S
+BEGIN
+    FOR i IN 1..100000 LOOP
+        INSERT INTO dm_sysobject_s VALUES (
+            'CASE_' || i,
+            MOD(i,2),  -- i_has_folder 0/1
+            MOD(i,5)   -- i_is_deleted 0..4
+        );
+    END LOOP;
+    COMMIT;
+END;
+/
+
+-- AMS_FOLDER_S
+BEGIN
+    FOR i IN 1..50000 LOOP
+        INSERT INTO ams_folder_s VALUES (
+            'FOLDER_' || i,
+            'Org_' || MOD(i,50)
+        );
+    END LOOP;
+    COMMIT;
+END;
+/
+
+
+⚠️ You can scale row counts up/down depending on your lab machine resources.
+
+2️⃣ Populate tables with sample data
+-- AMS_CASE_S
+BEGIN
+    FOR i IN 1..100000 LOOP
+        INSERT INTO ams_case_s VALUES (
+            'CASE_' || i,
+            'Org_' || MOD(i, 50),
+            'Note_' || MOD(i, 20),
+            MOD(i, 10)
+        );
+    END LOOP;
+    COMMIT;
+END;
+/
+
+-- DM_SYSOBJECT_S
+BEGIN
+    FOR i IN 1..100000 LOOP
+        INSERT INTO dm_sysobject_s VALUES (
+            'CASE_' || i,
+            MOD(i,2),  -- i_has_folder 0/1
+            MOD(i,5)   -- i_is_deleted 0..4
+        );
+    END LOOP;
+    COMMIT;
+END;
+/
+
+-- AMS_FOLDER_S
+BEGIN
+    FOR i IN 1..50000 LOOP
+        INSERT INTO ams_folder_s VALUES (
+            'FOLDER_' || i,
+            'Org_' || MOD(i,50)
+        );
+    END LOOP;
+    COMMIT;
+END;
+/
+
+
+⚠️ You can scale row counts up/down depending on your lab machine resources.
+4️⃣ Gather statistics
+EXEC DBMS_STATS.GATHER_TABLE_STATS('YOUR_SCHEMA','AMS_CASE_S', cascade=>TRUE);
+EXEC DBMS_STATS.GATHER_TABLE_STATS('YOUR_SCHEMA','DM_SYSOBJECT_S', cascade=>TRUE);
+EXEC DBMS_STATS.GATHER_TABLE_STATS('YOUR_SCHEMA','AMS_FOLDER_S', cascade=>TRUE);
+
+5️⃣ Example query to test plan behavior
+SELECT c.r_object_id,
+       c.ams_responsibleorganisation,
+       f.ams_responsibleorganisation AS folder_org,
+       d.i_has_folder,
+       d.i_is_deleted
+FROM ams_case_s c
+JOIN dm_sysobject_s d ON c.r_object_id = d.r_object_id
+JOIN ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+WHERE d.i_has_folder = 1
+  AND d.i_is_deleted = 0
+  AND c.ams_responsibleorganisation = 'Org_10';
+
+6️⃣ Check execution plan
+EXPLAIN PLAN FOR
+SELECT c.r_object_id,
+       c.ams_responsibleorganisation,
+       f.ams_responsibleorganisation AS folder_org,
+       d.i_has_folder,
+       d.i_is_deleted
+FROM ams_case_s c
+JOIN dm_sysobject_s d ON c.r_object_id = d.r_object_id
+JOIN ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+WHERE d.i_has_folder = 1
+  AND d.i_is_deleted = 0
+  AND c.ams_responsibleorganisation = 'Org_10';
+
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+7️⃣ Things you can experiment with
+
+Add/drop indexes on different columns and see how the plan changes.
+
+Manipulate statistics (e.g., DBMS_STATS.SET_TABLE_STATS) to simulate growth or skewed data.
+
+Force optimizer parameters in session:
+
+ALTER SESSION SET optimizer_index_cost_adj = 50;
+ALTER SESSION SET optimizer_index_caching = 75;
+ALTER SESSION SET optimizer_mode = ALL_ROWS;
+
+
+Introduce more joins or simulate repeating attributes to see nested loops vs hash joins.
+
+Capture plan history with DBMS_XPLAN.DISPLAY_CURSOR to compare changes after modifications.
+
+-- ==================================================
+-- Documentum-like Lab Environment Script
+-- Single file: tables, views, indexes, stats, query
+-- ==================================================
+
+-- =============================================
+-- 1️⃣ Create supertype tables (_s and _r)
+-- =============================================
+CREATE TABLE dm_sysobject_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    i_has_folder NUMBER(1),
+    i_is_deleted NUMBER(1)
+);
+
+CREATE TABLE dm_sysobject_r (
+    r_object_id VARCHAR2(16),
+    r_position NUMBER,
+    attribute_value VARCHAR2(200),
+    CONSTRAINT dm_sysobject_r_pk PRIMARY KEY (r_object_id, r_position)
+);
+
+-- =============================================
+-- 2️⃣ Create subtype tables (_s and _r)
+-- =============================================
+CREATE TABLE ams_case_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    ams_responsibleorganisation VARCHAR2(200),
+    ams_notes VARCHAR2(200)
+);
+
+CREATE TABLE ams_case_r (
+    r_object_id VARCHAR2(16),
+    r_position NUMBER,
+    ams_personalname VARCHAR2(200),
+    CONSTRAINT ams_case_r_pk PRIMARY KEY (r_object_id, r_position)
+);
+
+CREATE TABLE ams_folder_s (
+    r_object_id VARCHAR2(16) PRIMARY KEY,
+    ams_responsibleorganisation VARCHAR2(200)
+);
+
+-- =============================================
+-- 3️⃣ Create views (_sp and _rp)
+-- =============================================
+CREATE VIEW ams_case_sp AS
+SELECT c.r_object_id,
+       c.ams_responsibleorganisation,
+       c.ams_notes,
+       d.i_has_folder,
+       d.i_is_deleted
+FROM ams_case_s c
+JOIN dm_sysobject_s d ON c.r_object_id = d.r_object_id;
+
+CREATE VIEW ams_case_rp AS
+SELECT r.r_object_id,
+       r.r_position,
+       r.ams_personalname
+FROM ams_case_r r;
+
+-- =============================================
+-- 4️⃣ Populate tables
+-- =============================================
+DECLARE
+    i NUMBER;
+BEGIN
+    -- dm_sysobject_s
+    FOR i IN 1..100000 LOOP
+        INSERT INTO dm_sysobject_s VALUES ('CASE_'||i, MOD(i,2), MOD(i,3));
+    END LOOP;
+
+    -- ams_case_s
+    FOR i IN 1..100000 LOOP
+        INSERT INTO ams_case_s VALUES ('CASE_'||i, 'Org_'||MOD(i,50), 'Note_'||MOD(i,20));
+    END LOOP;
+
+    -- ams_case_r (repeating attributes)
+    FOR i IN 1..100000 LOOP
+        INSERT INTO ams_case_r VALUES ('CASE_'||i, 1, 'Person_'||MOD(i,10));
+        INSERT INTO ams_case_r VALUES ('CASE_'||i, 2, 'Person_'||MOD(i,20));
+    END LOOP;
+
+    -- ams_folder_s
+    FOR i IN 1..50000 LOOP
+        INSERT INTO ams_folder_s VALUES ('FOLDER_'||i, 'Org_'||MOD(i,50));
+    END LOOP;
+
+    COMMIT;
+END;
+/
+
+-- =============================================
+-- 5️⃣ Create indexes similar to production
+-- =============================================
+CREATE INDEX idx_case_responsible ON ams_case_s(ams_responsibleorganisation);
+CREATE INDEX idx_case_s_notes ON ams_case_s(ams_notes);
+CREATE INDEX idx_sysobject_flags ON dm_sysobject_s(i_has_folder, i_is_deleted);
+CREATE INDEX idx_case_r_person ON ams_case_r(ams_personalname);
+CREATE INDEX idx_folder_responsible ON ams_folder_s(ams_responsibleorganisation);
+
+-- =============================================
+-- 6️⃣ Gather statistics
+-- =============================================
+BEGIN
+    DBMS_STATS.GATHER_TABLE_STATS(USER, 'AMS_CASE_S', cascade=>TRUE);
+    DBMS_STATS.GATHER_TABLE_STATS(USER, 'AMS_CASE_R', cascade=>TRUE);
+    DBMS_STATS.GATHER_TABLE_STATS(USER, 'DM_SYSOBJECT_S', cascade=>TRUE);
+    DBMS_STATS.GATHER_TABLE_STATS(USER, 'AMS_FOLDER_S', cascade=>TRUE);
+END;
+/
+
+-- =============================================
+-- 7️⃣ Test query (similar to production)
+-- =============================================
+EXPLAIN PLAN FOR
+SELECT c.r_object_id,
+       c.ams_responsibleorganisation,
+       c.ams_notes,
+       d.i_has_folder,
+       d.i_is_deleted,
+       r.ams_personalname
+FROM ams_case_sp c
+JOIN dm_sysobject_s d ON c.r_object_id = d.r_object_id
+JOIN ams_case_rp r ON c.r_object_id = r.r_object_id
+WHERE d.i_has_folder = 1
+  AND d.i_is_deleted = 0
+  AND c.ams_responsibleorganisation = 'Org_10';
+
+-- Display execution plan
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
