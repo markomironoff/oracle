@@ -1,0 +1,25 @@
+-- Create HR user
+CREATE USER hr IDENTIFIED BY hr_password;
+GRANT CONNECT, RESOURCE TO hr;
+
+-- Connect as HR
+CONNECT hr/hr_password;
+
+-- Create management table
+CREATE TABLE management (
+    id NUMBER(5) PRIMARY KEY,
+    firstname VARCHAR2(50),
+    lastname VARCHAR2(50),
+    position VARCHAR2(50),
+    salary NUMBER(10,2)
+);
+
+-- Create CASEM1 user
+CREATE USER CASEM1 IDENTIFIED BY "keissi";
+GRANT CONNECT, RESOURCE TO CASEM1;
+GRANT CREATE VIEW TO CASEM1;
+GRANT UNLIMITED TABLESPACE TO CASEM1;
+
+-- Connect as HR
+CONNECT CASEM1/keissi@PDB1;
+

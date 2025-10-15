@@ -213,6 +213,7 @@ JOIN ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisa
 WHERE d.i_has_folder = 1
   AND d.i_is_deleted = 0
   AND c.ams_responsibleorganisation = 'Org_10';
+-- 0,118 seconds
 
 6️⃣ Check execution plan
 EXPLAIN PLAN FOR
@@ -377,3 +378,184 @@ WHERE d.i_has_folder = 1
 
 -- Display execution plan
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+
+SQL> r
+  1* SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY)
+
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Plan hash value: 1868451607
+
+---------------------------------------------------------------------------------------
+| Id  | Operation            | Name           | Rows  | Bytes | Cost (%CPU)| Time     |
+---------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT     |                |  3998 |   292K|   480   (1)| 00:00:01 |
+|*  1 |  HASH JOIN           |                |  3998 |   292K|   480   (1)| 00:00:01 |
+|   2 |   NESTED LOOPS       |                |  2000 |   105K|   240   (1)| 00:00:01 |
+|*  3 |    HASH JOIN         |                |  2000 | 86000 |   240   (1)| 00:00:01 |
+|*  4 |     TABLE ACCESS FULL| AMS_CASE_S     |  2000 | 52000 |   137   (1)| 00:00:01 |
+|*  5 |     TABLE ACCESS FULL| DM_SYSOBJECT_S | 16667 |   276K|   103   (1)| 00:00:01 |
+
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+|*  6 |    INDEX UNIQUE SCAN | SYS_C008599    |     1 |    11 |     0   (0)| 00:00:01 |
+|   7 |   TABLE ACCESS FULL  | AMS_CASE_R     |   200K|  4101K|   239   (1)| 00:00:01 |
+---------------------------------------------------------------------------------------
+
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - access("C"."R_OBJECT_ID"="R"."R_OBJECT_ID")
+   3 - access("C"."R_OBJECT_ID"="D"."R_OBJECT_ID")
+   4 - filter("C"."AMS_RESPONSIBLEORGANISATION"='Org_10')
+   5 - filter("D"."I_IS_DELETED"=0 AND "D"."I_HAS_FOLDER"=1)
+
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   6 - access("C"."R_OBJECT_ID"="D"."R_OBJECT_ID")
+
+23 rows selected.
+
+🔍 1. The Big Picture
+
+The top line (Id 0 | SELECT STATEMENT) shows the overall query, and each indented line below represents an operation in the execution tree.
+The Id numbers indicate the order of execution (Oracle typically executes bottom-up).
+
+🧩 2. The Execution Tree Breakdown
+Id	Operation	Description
+0	SELECT STATEMENT	The main query node (final result).
+1	HASH JOIN	Joins two result sets using a hash table. This is the main join between two large result sets.
+2	NESTED LOOPS	One input drives repeated lookups into another (useful when one side is small).
+3	HASH JOIN	Another join inside the nested loop; joins two tables.
+4	TABLE ACCESS FULL on AMS_CASE_S	Full table scan; all rows are read. Filter applied.
+5	TABLE ACCESS FULL on DM_SYSOBJECT_S	Full table scan; all rows are read. Filter applied.
+6	INDEX UNIQUE SCAN on SYS_C008599	Uses a unique index (likely a PK or unique constraint) for fast lookup.
+7	TABLE ACCESS FULL on AMS_CASE_R	Another full table scan (large table — 200K rows).
+📚 3. Understanding the “Predicate Information”
+
+This section tells you which conditions were applied at each step:
+
+Id	Predicate	Meaning
+1	"C"."R_OBJECT_ID"="R"."R_OBJECT_ID"	Join between AMS_CASE_S (C) and AMS_CASE_R (R)
+3	"C"."R_OBJECT_ID"="D"."R_OBJECT_ID"	Join between AMS_CASE_S (C) and DM_SYSOBJECT_S (D)
+4	"C"."AMS_RESPONSIBLEORGANISATION"='Org_10'	Filter on the AMS_CASE_S table
+5	"D"."I_IS_DELETED"=0 AND "D"."I_HAS_FOLDER"=1	Filter on DM_SYSOBJECT_S
+6	"C"."R_OBJECT_ID"="D"."R_OBJECT_ID"	Index scan lookup condition
+⚙️ 4. Step-by-Step Execution Flow (Bottom-Up)
+
+Let’s walk through the actual execution:
+
+Id 4: Full table scan on AMS_CASE_S
+
+Reads all rows where AMS_RESPONSIBLEORGANISATION = 'Org_10'.
+
+Id 5: Full table scan on DM_SYSOBJECT_S
+
+Reads all rows where I_IS_DELETED = 0 and I_HAS_FOLDER = 1.
+
+Id 3: Hash join between those two tables (C and D).
+
+Joins on R_OBJECT_ID.
+
+Produces about 2000 rows (after filtering and joining).
+
+Id 6: For each resulting row, an INDEX UNIQUE SCAN on SYS_C008599 happens — likely to validate or fetch related data.
+
+Id 7: A full scan on AMS_CASE_R (a large table with 200K rows).
+
+Id 2: The NESTED LOOPS operation pairs the result of step 3 with matching rows from step 6 or 7 (depending on the join order).
+
+Id 1: Finally, a HASH JOIN combines everything (the result from the nested loops and AMS_CASE_R) into the final output of ~4,000 rows.
+
+📈 5. Performance Clues
+Metric	Observation
+Cost (480)	Not huge, but there are multiple full table scans — could be tuned.
+Rows estimate (≈4000)	The optimizer expects a moderate result size.
+Hash joins + nested loops	Suggest mixed join strategies due to varying table sizes.
+Full table scans	Possibly due to lack of selective indexes on join/filter columns.
+🩺 6. Simplified Interpretation
+
+You can think of it like this:
+
+AMS_CASE_S (filtered by Org_10)
+   ⨝ (hash join on R_OBJECT_ID)
+DM_SYSOBJECT_S (filtered by flags)
+   ↳ result joined (nested loop + hash join)
+AMS_CASE_R (large table, joined on R_OBJECT_ID)
+
+
+The plan builds up partial results from smaller filtered sets, joins them via hash joins, and then loops into a larger table to finalize results.
+
+✅ 7. What You Can Do as a DBA
+
+If performance is poor:
+
+Check if indexes exist on R_OBJECT_ID, AMS_RESPONSIBLEORGANISATION, I_IS_DELETED, and I_HAS_FOLDER.
+
+Consider adding composite indexes if filters and joins often use the same columns.
+
+Verify statistics are up to date (stale stats can lead to full table scans).
+
+Compare actual vs. estimated rows in AUTOTRACE or DBMS_XPLAN.DISPLAY_CURSOR.
+
+                ┌─────────────────────────────┐
+                │ TABLE ACCESS FULL           │
+                │ AMS_CASE_S                  │
+                │ Filter: Org_10              │
+                └───────────────┬─────────────┘
+                                │
+                                ▼
+                ┌─────────────────────────────┐
+                │ TABLE ACCESS FULL           │
+                │ DM_SYSOBJECT_S              │
+                │ Filter: not deleted, has folder │
+                └───────────────┬─────────────┘
+                                │
+                                ▼
+                ┌─────────────────────────────┐
+                │ HASH JOIN                   │
+                │ Join: C.R_OBJECT_ID = D.R_OBJECT_ID │
+                └───────────────┬─────────────┘
+                                │
+                                ▼
+                ┌─────────────────────────────┐
+                │ INDEX UNIQUE SCAN           │
+                │ SYS_C008599 (on R_OBJECT_ID)│
+                └───────────────┬─────────────┘
+                                │
+                                ▼
+                ┌─────────────────────────────┐
+                │ NESTED LOOPS                │
+                │ Combine hash join + index   │
+                └───────────────┬─────────────┘
+                                │
+                                ▼
+                ┌─────────────────────────────┐
+                │ TABLE ACCESS FULL           │
+                │ AMS_CASE_R (large table)    │
+                └───────────────┬─────────────┘
+                                │
+                                ▼
+                ┌─────────────────────────────┐
+                │ HASH JOIN (Final Join)      │
+                │ Join Nested Loop + AMS_CASE_R│
+                └───────────────┬─────────────┘
+                                │
+                                ▼
+                ┌─────────────────────────────┐
+                │ SELECT STATEMENT (output)   │
+                │ ~4000 rows, cost 480        │
+                └─────────────────────────────┘
+
+🧠 Summary (What’s Happening)
+
+Oracle scans two smaller tables (AMS_CASE_S, DM_SYSOBJECT_S), filtering them.
+
+It hash joins them using R_OBJECT_ID.
+
+Then it uses an index scan (SYS_C008599) to fetch related data efficiently.
+
+The nested loop operation combines those results with the index lookups.
+
+Finally, it hash joins that intermediate result with the large table AMS_CASE_R, completing the query.
