@@ -1,3 +1,7 @@
+https://blogs.oracle.com/optimizer/post/how-to-generate-a-useful-sql-execution-plan
+https://blogs.oracle.com/optimizer/post/how-do-i-display-and-read-the-execution-plans-for-a-sql-statement
+https://www.bobbydurrettdba.com/2020/01/28/query-plan-change-diagnosis-example/?utm_source=chatgpt.com
+
 You can build a controlled scenario in a lab environment to study query plan changes and execution plan troubleshooting. 
 In fact, it’s one of the best ways to internalize these concepts. Here’s a structured way to do it:
 1️⃣ Set up a representative schema
