@@ -1,0 +1,387 @@
+sqlplus casem1/keissi@pdb1
+
+set pagesize 200
+SET PAGESIZE 0
+col AMS_RESPONSIBLEORGANISATION format a10
+col FOLDER_ORG format a10
+ 
+SELECT c.r_object_id,
+       c.ams_responsibleorganisation,
+       f.ams_responsibleorganisation AS folder_org,
+       d.i_has_folder,
+       d.i_is_deleted
+FROM ams_case_s c
+JOIN dm_sysobject_s d ON c.r_object_id = d.r_object_id
+JOIN ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+WHERE d.i_has_folder = 1
+  AND d.i_is_deleted = 0
+  AND c.ams_responsibleorganisation = 'Org_1';
+
+-- 667000 rows selected.
+/*
+SELECT *
+FROM (
+    SELECT c.r_object_id,
+           c.ams_responsibleorganisation,
+           f.ams_responsibleorganisation AS folder_org,
+           d.i_has_folder,
+           d.i_is_deleted
+    FROM ams_case_s c
+    JOIN dm_sysobject_s d ON c.r_object_id = d.r_object_id
+    JOIN ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+    WHERE d.i_has_folder = 1
+      AND d.i_is_deleted = 0
+      AND c.ams_responsibleorganisation = 'Org_1'
+)
+WHERE ROWNUM <= 10;
+*/
+
+SQL> SELECT * FROM table(DBMS_XPLAN.DISPLAY_CURSOR);
+User has no SELECT privilege on V$SESSION
+
+[oracle@oraclevm ~]$ sqlplus / as sysdba
+SQL> alter session set container=pdb1;
+
+
+SELECT *
+FROM (
+    SELECT c.r_object_id,
+           c.ams_responsibleorganisation,
+           f.ams_responsibleorganisation AS folder_org,
+           d.i_has_folder,
+           d.i_is_deleted
+    FROM casem1.ams_case_s c
+    JOIN casem1.dm_sysobject_s d ON c.r_object_id = d.r_object_id
+    JOIN casem1.ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+    WHERE d.i_has_folder = 1
+      AND d.i_is_deleted = 0
+      AND c.ams_responsibleorganisation = 'Org_1'
+)
+WHERE ROWNUM <= 100;
+
+-- viimeisimmän sessiossa ajetun kyselyn suunnitelma:
+SQL> SELECT * FROM table(DBMS_XPLAN.DISPLAY_CURSOR);
+SQL_ID  0c5dmxyy29jph, child number 0
+-------------------------------------
+SELECT * FROM (     SELECT c.r_object_id,
+c.ams_responsibleorganisation,            f.ams_responsibleorganisation
+AS folder_org,            d.i_has_folder,            d.i_is_deleted
+FROM casem1.ams_case_s c     JOIN casem1.dm_sysobject_s d ON
+c.r_object_id = d.r_object_id     JOIN casem1.ams_folder_s f ON
+c.ams_responsibleorganisation = f.ams_responsibleorganisation     WHERE
+d.i_has_folder = 1       AND d.i_is_deleted = 0       AND
+c.ams_responsibleorganisation = 'Org_1' ) WHERE ROWNUM <= 100
+
+Plan hash value: 2647989720
+
+-----------------------------------------------------------------------------------------------------------------
+| Id  | Operation                              | Name                   | Rows  | Bytes | Cost (%CPU)| Time     |
+-----------------------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                       |                        |       |       |     6 (100)|          |
+|*  1 |  COUNT STOPKEY                         |                        |       |       |            |          |
+|   2 |   NESTED LOOPS                         |                        |   202 |  8484 |     6   (0)| 00:00:01 |
+|   3 |    NESTED LOOPS                        |                        |     2 |    70 |     4   (0)| 00:00:01 |
+|   4 |     TABLE ACCESS BY INDEX ROWID BATCHED| AMS_CASE_S             |  1852 | 33336 |     2   (0)| 00:00:01 |
+|*  5 |      INDEX RANGE SCAN                  | IDX_CASE_RESPONSIBLE   |       |       |     1   (0)| 00:00:01 |
+|*  6 |     TABLE ACCESS BY INDEX ROWID        | DM_SYSOBJECT_S         |     1 |    17 |     1   (0)| 00:00:01 |
+|*  7 |      INDEX UNIQUE SCAN                 | SYS_C008599            |     1 |       |     0   (0)|          |
+|*  8 |    INDEX RANGE SCAN                    | IDX_FOLDER_RESPONSIBLE |   101 |   707 |     1   (0)| 00:00:01 |
+-----------------------------------------------------------------------------------------------------------------
+
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - filter(ROWNUM<=100)
+   5 - access("C"."AMS_RESPONSIBLEORGANISATION"='Org_1')
+   6 - filter(("D"."I_IS_DELETED"=0 AND "D"."I_HAS_FOLDER"=1))
+   7 - access("C"."R_OBJECT_ID"="D"."R_OBJECT_ID")
+   8 - access("F"."AMS_RESPONSIBLEORGANISATION"='Org_1')
+
+
+36 rows selected.
+
+EXPLAIN PLAN FOR
+SELECT c.r_object_id,
+       c.ams_responsibleorganisation,
+       f.ams_responsibleorganisation AS folder_org,
+       d.i_has_folder,
+       d.i_is_deleted
+FROM casem1.ams_case_s c
+JOIN casem1.dm_sysobject_s d ON c.r_object_id = d.r_object_id
+JOIN casem1.ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+WHERE d.i_has_folder = 1
+  AND d.i_is_deleted = 0
+  AND c.ams_responsibleorganisation = 'Org_1';
+  
+Explained.
+
+ SELECT * FROM table(DBMS_XPLAN.DISPLAY)
+Plan hash value: 2805193657
+
+----------------------------------------------------------------------------------------------
+| Id  | Operation           | Name                   | Rows  | Bytes | Cost (%CPU)| Time     |
+----------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT    |                        |  1999K|    80M|   250   (4)| 00:00:01 |
+|*  1 |  HASH JOIN          |                        |  1999K|    80M|   250   (4)| 00:00:01 |
+|*  2 |   INDEX RANGE SCAN  | IDX_FOLDER_RESPONSIBLE |  1000 |  7000 |     3   (0)| 00:00:01 |
+|*  3 |   HASH JOIN         |                        |  2000 | 70000 |   240   (1)| 00:00:01 |
+|*  4 |    TABLE ACCESS FULL| AMS_CASE_S             |  2000 | 36000 |   137   (1)| 00:00:01 |
+|*  5 |    TABLE ACCESS FULL| DM_SYSOBJECT_S         | 16666 |   276K|   103   (1)| 00:00:01 |
+----------------------------------------------------------------------------------------------
+
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - access("C"."AMS_RESPONSIBLEORGANISATION"="F"."AMS_RESPONSIBLEORGANISATION")
+   2 - access("F"."AMS_RESPONSIBLEORGANISATION"='Org_1')
+   3 - access("C"."R_OBJECT_ID"="D"."R_OBJECT_ID")
+   4 - filter("C"."AMS_RESPONSIBLEORGANISATION"='Org_1')
+   5 - filter("D"."I_IS_DELETED"=0 AND "D"."I_HAS_FOLDER"=1)
+
+Note
+-----
+   - this is an adaptive plan
+
+25 rows selected.
+
+SQL> select plan_table_output from table(dbms_xplan.display('plan_table',null,'basic'));
+Plan hash value: 2805193657
+
+------------------------------------------------------
+| Id  | Operation           | Name                   |
+------------------------------------------------------
+|   0 | SELECT STATEMENT    |                        |
+|   1 |  HASH JOIN          |                        |
+|   2 |   INDEX RANGE SCAN  | IDX_FOLDER_RESPONSIBLE |
+|   3 |   HASH JOIN         |                        |
+|   4 |    TABLE ACCESS FULL| AMS_CASE_S             |
+|   5 |    TABLE ACCESS FULL| DM_SYSOBJECT_S         |
+------------------------------------------------------
+
+12 rows selected.
+
+SELECT *
+FROM (
+    SELECT c.r_object_id,
+           c.ams_responsibleorganisation,
+           f.ams_responsibleorganisation AS folder_org,
+           d.i_has_folder,
+           d.i_is_deleted
+    FROM casem1.ams_case_s c
+    JOIN casem1.dm_sysobject_s d ON c.r_object_id = d.r_object_id
+    JOIN casem1.ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+    WHERE d.i_has_folder = 1
+      AND d.i_is_deleted = 0
+      AND c.ams_responsibleorganisation = 'Org_1'
+)
+WHERE ROWNUM <= 100;
+
+-- viimeisin ajettu kysely:
+select plan_table_output from table(dbms_xplan.display_cursor(null,null,'basic'));
+
+SQL> select plan_table_output from table(dbms_xplan.display_cursor(null,null,'basic'));
+EXPLAINED SQL STATEMENT:
+------------------------
+SELECT * FROM (     SELECT c.r_object_id,
+c.ams_responsibleorganisation,            f.ams_responsibleorganisation
+AS folder_org,            d.i_has_folder,            d.i_is_deleted
+FROM casem1.ams_case_s c     JOIN casem1.dm_sysobject_s d ON
+c.r_object_id = d.r_object_id     JOIN casem1.ams_folder_s f ON
+c.ams_responsibleorganisation = f.ams_responsibleorganisation     WHERE
+d.i_has_folder = 1       AND d.i_is_deleted = 0       AND
+c.ams_responsibleorganisation = 'Org_1' ) WHERE ROWNUM <= 100
+
+Plan hash value: 2647989720
+
+-------------------------------------------------------------------------
+| Id  | Operation                              | Name                   |
+-------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                       |                        |
+|   1 |  COUNT STOPKEY                         |                        |
+|   2 |   NESTED LOOPS                         |                        |
+|   3 |    NESTED LOOPS                        |                        |
+|   4 |     TABLE ACCESS BY INDEX ROWID BATCHED| AMS_CASE_S             |
+|   5 |      INDEX RANGE SCAN                  | IDX_CASE_RESPONSIBLE   |
+|   6 |     TABLE ACCESS BY INDEX ROWID        | DM_SYSOBJECT_S         |
+|   7 |      INDEX UNIQUE SCAN                 | SYS_C008599            |
+|   8 |    INDEX RANGE SCAN                    | IDX_FOLDER_RESPONSIBLE |
+-------------------------------------------------------------------------
+
+
+27 rows selected.
+
+SELECT /* MYQUERY */ * FROM (     SELECT c.r_object_id,
+c.ams_responsibleorganisation,            f.ams_responsibleorganisation
+AS folder_org,            d.i_has_folder,            d.i_is_deleted
+FROM casem1.ams_case_s c     JOIN casem1.dm_sysobject_s d ON
+c.r_object_id = d.r_object_id     JOIN casem1.ams_folder_s f ON
+c.ams_responsibleorganisation = f.ams_responsibleorganisation     WHERE
+d.i_has_folder = 1       AND d.i_is_deleted = 0       AND
+c.ams_responsibleorganisation = 'Org_1' ) WHERE ROWNUM <= 100;
+
+SELECT sql_id, child_number
+FROM v$sql 
+WHERE sql_text LIKE '%MYQUERY%';
+45f9ry1wbn4dm            0
+6xvky8khhmpjs            0
+
+SELECT * FROM table(DBMS_XPLAN.DISPLAY_CURSOR('45f9ry1wbn4dm',0));
+SQL> SELECT * FROM table(DBMS_XPLAN.DISPLAY_CURSOR('45f9ry1wbn4dm',0));
+SQL_ID  45f9ry1wbn4dm, child number 0
+-------------------------------------
+SELECT /* MYQUERY */ * FROM (     SELECT c.r_object_id,
+c.ams_responsibleorganisation,            f.ams_responsibleorganisation
+AS folder_org,            d.i_has_folder,            d.i_is_deleted
+FROM casem1.ams_case_s c     JOIN casem1.dm_sysobject_s d ON
+c.r_object_id = d.r_object_id     JOIN casem1.ams_folder_s f ON
+c.ams_responsibleorganisation = f.ams_responsibleorganisation     WHERE
+d.i_has_folder = 1       AND d.i_is_deleted = 0       AND
+c.ams_responsibleorganisation = 'Org_1' ) WHERE ROWNUM <= 100
+
+Plan hash value: 2647989720
+
+-----------------------------------------------------------------------------------------------------------------
+| Id  | Operation                              | Name                   | Rows  | Bytes | Cost (%CPU)| Time     |
+-----------------------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                       |                        |       |       |     6 (100)|          |
+|*  1 |  COUNT STOPKEY                         |                        |       |       |            |          |
+|   2 |   NESTED LOOPS                         |                        |   202 |  8484 |     6   (0)| 00:00:01 |
+|   3 |    NESTED LOOPS                        |                        |     2 |    70 |     4   (0)| 00:00:01 |
+|   4 |     TABLE ACCESS BY INDEX ROWID BATCHED| AMS_CASE_S             |  1852 | 33336 |     2   (0)| 00:00:01 |
+|*  5 |      INDEX RANGE SCAN                  | IDX_CASE_RESPONSIBLE   |       |       |     1   (0)| 00:00:01 |
+|*  6 |     TABLE ACCESS BY INDEX ROWID        | DM_SYSOBJECT_S         |     1 |    17 |     1   (0)| 00:00:01 |
+|*  7 |      INDEX UNIQUE SCAN                 | SYS_C008599            |     1 |       |     0   (0)|          |
+|*  8 |    INDEX RANGE SCAN                    | IDX_FOLDER_RESPONSIBLE |   101 |   707 |     1   (0)| 00:00:01 |
+-----------------------------------------------------------------------------------------------------------------
+
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - filter(ROWNUM<=100)
+   5 - access("C"."AMS_RESPONSIBLEORGANISATION"='Org_1')
+   6 - filter(("D"."I_IS_DELETED"=0 AND "D"."I_HAS_FOLDER"=1))
+   7 - access("C"."R_OBJECT_ID"="D"."R_OBJECT_ID")
+   8 - access("F"."AMS_RESPONSIBLEORGANISATION"='Org_1')
+
+
+SELECT * FROM table(DBMS_XPLAN.DISPLAY_CURSOR('6xvky8khhmpjs',0));
+SQL_ID  6xvky8khhmpjs, child number 0
+-------------------------------------
+SELECT sql_id, child_number FROM v$sql WHERE sql_text LIKE '%MYQUERY%'
+
+Plan hash value: 903671040
+
+---------------------------------------------------------------------------
+| Id  | Operation        | Name              | Rows  | Bytes | Cost (%CPU)|
+---------------------------------------------------------------------------
+|   0 | SELECT STATEMENT |                   |       |       |     1 (100)|
+|*  1 |  FIXED TABLE FULL| X$KGLCURSOR_CHILD |     1 |   549 |     0   (0)|
+---------------------------------------------------------------------------
+
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - filter(("KGLNAOBJ" IS NOT NULL AND INTERNAL_FUNCTION("CON_ID")
+              AND "KGLNAOBJ" LIKE '%MYQUERY%' AND "INST_ID"=USERENV('INSTANCE')))
+
+
+19 rows selected.
+
+select plan_table_output from table(dbms_xplan.display_cursor('45f9ry1wbn4dm',null,'basic'));
+EXPLAINED SQL STATEMENT:
+------------------------
+SELECT /* MYQUERY */ * FROM (     SELECT c.r_object_id,
+c.ams_responsibleorganisation,            f.ams_responsibleorganisation
+AS folder_org,            d.i_has_folder,            d.i_is_deleted
+FROM casem1.ams_case_s c     JOIN casem1.dm_sysobject_s d ON
+c.r_object_id = d.r_object_id     JOIN casem1.ams_folder_s f ON
+c.ams_responsibleorganisation = f.ams_responsibleorganisation     WHERE
+d.i_has_folder = 1       AND d.i_is_deleted = 0       AND
+c.ams_responsibleorganisation = 'Org_1' ) WHERE ROWNUM <= 100
+
+Plan hash value: 2647989720
+
+-------------------------------------------------------------------------
+| Id  | Operation                              | Name                   |
+-------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                       |                        |
+|   1 |  COUNT STOPKEY                         |                        |
+|   2 |   NESTED LOOPS                         |                        |
+|   3 |    NESTED LOOPS                        |                        |
+|   4 |     TABLE ACCESS BY INDEX ROWID BATCHED| AMS_CASE_S             |
+|   5 |      INDEX RANGE SCAN                  | IDX_CASE_RESPONSIBLE   |
+|   6 |     TABLE ACCESS BY INDEX ROWID        | DM_SYSOBJECT_S         |
+|   7 |      INDEX UNIQUE SCAN                 | SYS_C008599            |
+|   8 |    INDEX RANGE SCAN                    | IDX_FOLDER_RESPONSIBLE |
+-------------------------------------------------------------------------
+
+
+27 rows selected.
+
+
+SQL> select plan_table_output
+    from v$sql s,
+    table(dbms_xplan.display_cursor(s.sql_id,
+                                   s.child_number, 'basic')) t
+    where s.sql_text like '%MYQUERY%';
+	
+EXPLAINED SQL STATEMENT:
+------------------------
+SELECT /* MYQUERY */ * FROM (     SELECT c.r_object_id,
+c.ams_responsibleorganisation,            f.ams_responsibleorganisation
+AS folder_org,            d.i_has_folder,            d.i_is_deleted
+FROM casem1.ams_case_s c     JOIN casem1.dm_sysobject_s d ON
+c.r_object_id = d.r_object_id     JOIN casem1.ams_folder_s f ON
+c.ams_responsibleorganisation = f.ams_responsibleorganisation     WHERE
+d.i_has_folder = 1       AND d.i_is_deleted = 0       AND
+c.ams_responsibleorganisation = 'Org_1' ) WHERE ROWNUM <= 100
+
+Plan hash value: 2647989720
+
+-------------------------------------------------------------------------
+| Id  | Operation                              | Name                   |
+-------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                       |                        |
+|   1 |  COUNT STOPKEY                         |                        |
+|   2 |   NESTED LOOPS                         |                        |
+|   3 |    NESTED LOOPS                        |                        |
+|   4 |     TABLE ACCESS BY INDEX ROWID BATCHED| AMS_CASE_S             |
+|   5 |      INDEX RANGE SCAN                  | IDX_CASE_RESPONSIBLE   |
+|   6 |     TABLE ACCESS BY INDEX ROWID        | DM_SYSOBJECT_S         |
+|   7 |      INDEX UNIQUE SCAN                 | SYS_C008599            |
+|   8 |    INDEX RANGE SCAN                    | IDX_FOLDER_RESPONSIBLE |
+-------------------------------------------------------------------------
+
+EXPLAINED SQL STATEMENT:
+------------------------
+SELECT sql_id, child_number FROM v$sql WHERE sql_text LIKE '%MYQUERY%'
+
+Plan hash value: 903671040
+
+----------------------------------------------
+| Id  | Operation        | Name              |
+----------------------------------------------
+|   0 | SELECT STATEMENT |                   |
+|   1 |  FIXED TABLE FULL| X$KGLCURSOR_CHILD |
+----------------------------------------------
+
+
+40 rows selected.
+
+alter session set optimizer_capture_sql_plan_baselines=true;
+
+SELECT c.r_object_id,
+       c.ams_responsibleorganisation,
+       f.ams_responsibleorganisation AS folder_org,
+       d.i_has_folder,
+       d.i_is_deleted
+FROM casem1.ams_case_s c
+JOIN casem1.dm_sysobject_s d ON c.r_object_id = d.r_object_id
+JOIN casem1.ams_folder_s f ON c.ams_responsibleorganisation = f.ams_responsibleorganisation
+WHERE d.i_has_folder = 1
+  AND d.i_is_deleted = 0
+  AND c.ams_responsibleorganisation = 'Org_1';
+  
+  select SQL_HANDLE, PLAN_NAME, ACCEPTED
+   from dba_sql_plan_baselines
+   where sql_text like '%r_object_id%';
