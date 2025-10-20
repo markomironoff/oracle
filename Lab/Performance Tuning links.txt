@@ -1,0 +1,7 @@
+https://docs.oracle.com/en/database/oracle/oracle-database/21/tdppt/index.html
+
+https://docs.oracle.com/en/database//oracle/oracle-database/21/tgdba/index.html
+
+https://codingsight.com/oracle-performance-tuning-tips-and-tricks/
+
+https://www.comparitech.com/net-admin/performance-tuning-in-oracle/
