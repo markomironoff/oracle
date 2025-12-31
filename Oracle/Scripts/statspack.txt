@@ -101,7 +101,7 @@ EXEC perfstat.statspack.snap;
 -- snap_id
 SELECT snap_id, snap_time
 FROM perfstat.stats$snapshot
-ORDER BY snap_id DESC;
+ORDER BY snap_id ASC;
 
 cd $ORACLE_HOME/rdbms/admin
 sqlplus / as sysdba
@@ -109,5 +109,12 @@ sqlplus / as sysdba
 SELECT MIN(snap_id) min_snap, MAX(snap_id) max_snap
 FROM perfstat.stats$snapshot
 WHERE snap_time > SYSDATE - 30;
+
+SELECT snap_id,
+       TO_CHAR(snap_time,'YYYY-MM-DD HH24:MI') snap_time
+FROM   perfstat.stats$snapshot
+WHERE  snap_id BETWEEN 73 AND 819
+ORDER  BY snap_id;
+
 
 @spreport.sql
