@@ -1,0 +1,5 @@
+-- database size
+SELECT
+    ROUND(SUM(bytes)/1024/1024/1024, 2) AS total_size_gb
+FROM
+    dba_data_files;

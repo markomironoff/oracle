@@ -1,0 +1,2 @@
+ps -ef | grep -i mongod | grep -v grep
+Get-Service | Where-Object {$_.Name -match "mongo"}

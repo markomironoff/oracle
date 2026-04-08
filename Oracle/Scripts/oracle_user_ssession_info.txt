@@ -1,7 +1,7 @@
-set linesize 200
+set linesize 300
 col username format a20
-col osuser format a20
-col program format a20
+col osuser format a30
+col program format a60
 col machine format a30
 set pages 1000
 

@@ -1,0 +1,57 @@
+set linesize 200
+col file_name format a50
+SELECT
+    df.tablespace_name,
+    ROUND(df.total_space_gb, 2) AS total_gb,
+    ROUND(df.total_space_gb - fs.free_space_gb, 2) AS used_gb,
+    ROUND(fs.free_space_gb, 2) AS free_gb,
+    ROUND(((df.total_space_gb - fs.free_space_gb) / df.total_space_gb) * 100, 2) AS pct_used,
+    ROUND((fs.free_space_gb / df.total_space_gb) * 100, 2) AS pct_free
+FROM
+    (SELECT tablespace_name,
+            SUM(bytes) / 1024 / 1024 / 1024 AS total_space_gb
+     FROM dba_data_files
+     WHERE tablespace_name = 'POMSEXECLARGELX'
+     GROUP BY tablespace_name) df,
+    (SELECT tablespace_name,
+            NVL(SUM(bytes),0) / 1024 / 1024 / 1024 AS free_space_gb
+     FROM dba_free_space
+     WHERE tablespace_name = 'POMSEXECLARGELX'
+     GROUP BY tablespace_name) fs
+WHERE df.tablespace_name = fs.tablespace_name;
+
+SELECT file_name, bytes/1024/1024/1024 AS current_gb,
+       maxbytes/1024/1024/1024 AS max_gb,
+       autoextensible
+FROM dba_data_files
+WHERE tablespace_name = 'NRTDATA_LOB';
+
+ALTER DATABASE DATAFILE '+DATA1/NRTPROD/DATAFILE/nrtodsdata.283.1210073553' RESIZE 10G;
+#OMF
+ALTER TABLESPACE POMSRPDATA ADD DATAFILE SIZE 10G AUTOEXTEND ON NEXT 500M;
+FILE_NAME                                                    CURRENT_GB     MAX_GB AUT
+------------------------------------------------------------ ---------- ---------- ---
++POMS_DATA/MESTKUP/pomsrpdata.dbf                            31.9999847 31.9999847 YES
++POMS_DATA/MESTKUP/pomsrpdata_02.dbf                             25.375 31.9999847 YES
++POMS_DATA/MESTKUP/DATAFILE/pomsrpdata.390.1224143363                10 31.9999847 YES
+
+# ASM
+SELECT
+  name,
+  ROUND(total_mb/1024, 2)        AS total_gb,
+  ROUND(free_mb/1024, 2)         AS free_gb,
+  ROUND(usable_file_mb/1024, 2)  AS usable_file_gb
+FROM v$asm_diskgroup
+WHERE name = 'POMS_DATA';
+
+NAME                             TOTAL_GB    FREE_GB USABLE_FILE_GB
+------------------------------ ---------- ---------- --------------
+POMS_DATA                            2100     250.42         250.42
+
+
+ALTER TABLESPACE POMSEXECLARGE
+ADD DATAFILE '+POMS_DATA/MESESPP/pomsexeclarge07.dbf'
+SIZE 20G AUTOEXTEND ON NEXT 1G MAXSIZE 33554416K;
+
+ALTER DATABASE DATAFILE '+POMS_DATA/MESESPP/pomsexeclarge07.dbf'
+AUTOEXTEND ON NEXT 1G MAXSIZE 33554416K;

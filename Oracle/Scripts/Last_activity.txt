@@ -1,0 +1,90 @@
+SQL> SELECT file#, name, CHECKPOINT_TIME
+FROM   v$datafile_header
+ORDER BY CHECKPOINT_TIME DESC;  2    3
+
+     FILE#
+----------
+NAME
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CHECKPOIN
+---------
+         1
++IPPR_DATA/ippr/system01.dbf
+04-MAR-26
+
+         2
++IPPR_DATA/ippr/undotbs01.dbf
+04-MAR-26
+
+         3
++IPPR_DATA/ippr/sysaux01.dbf
+04-MAR-26
+
+         4
++IPPR_DATA/ippr/users01.dbf
+04-MAR-26
+
+         9
++IPPR_DATA/ippr/users02.dbf
+04-MAR-26
+
+         6
++IPPR_DATA/ippr/eflow_idx01.dbf
+04-MAR-26
+
+         7
++IPPR_DATA/ippr/tools01.dbf
+04-MAR-26
+
+         8
++IPPR_DATA/ippr/perfstat01.dbf
+04-MAR-26
+
+         5
++IPPR_DATA/ippr/eflow01.dbf
+04-MAR-26
+
+
+9 rows selected.
+
+
+SQL> SELECT FIRST_TIME
+FROM (
+    SELECT FIRST_TIME
+    FROM   v$log_history
+    ORDER BY FIRST_TIME DESC
+)
+WHERE ROWNUM = 1;  2    3    4    5    6    7
+
+FIRST_TIM
+---------
+04-MAR-26
+
+SQL> SELECT FIRST_TIME
+FROM (
+    SELECT FIRST_TIME
+    FROM   v$log_history
+    ORDER BY FIRST_TIME DESC
+)
+WHERE ROWNUM = 1;
+``  2    3    4    5    6    7
+FIRST_TIM
+---------
+04-MAR-26
+
+
+SELECT *
+FROM (
+  SELECT sql_id,
+         TO_CHAR(last_active_time,'YYYY-MM-DD HH24:MI:SS') AS last_active_time,
+         parsing_schema_name,
+         module,
+         action,
+         command_type,
+         sql_text
+  FROM   v$sql
+  WHERE  parsing_schema_name IS NOT NULL
+    AND  UPPER(parsing_schema_name) NOT IN ('SYS','TS_MONITOR','PERFSTAT','EXFSYS','ORACLE_OCM')
+  ORDER  BY last_active_time DESC NULLS LAST
+)
+WHERE ROWNUM <= 20;

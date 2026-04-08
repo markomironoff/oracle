@@ -1,0 +1,284 @@
+connect hr/hr@PDB1
+
+ 1* select * from management
+
+        ID FIRSTNAME                      LASTNAME                       POSITION                                     SALARY
+---------- ------------------------------ ------------------------------ ---------------------------------------- ----------
+         2 Jane                           Smith                          CFO                                          140000
+         3 Robert                         Brown                          COO                                          135000
+         4 Linda                          Johnson                        CTO                                          145000
+         5 Michael                        Williams                       CMO                                          130000
+         6 Elizabeth                      Jones                          VP Sales                                     120000
+         7 William                        Miller                         VP Marketing                                 118000
+         8 Patricia                       Davis                          VP Operations                                122000
+         9 David                          Garcia                         VP Finance                                   125000
+        10 Jennifer                       Martinez                       HR Director                                  110000
+
+9 rows selected.
+
+SQL> CONNECT CASEM1/keissi@PDB1;
+Connected.
+SQL> select table_name from user_tables;
+
+TABLE_NAME
+--------------------------------------------------------------------------------------------------------------------------------
+DM_SYSOBJECT_S
+DM_SYSOBJECT_R
+AMS_CASE_S
+AMS_CASE_R
+AMS_FOLDER_S
+
+
+
+[oracle@fiorap01 ~]$ cat /home/oracle/export/full_exp_PDB1.sh
+#!/bin/ksh
+
+# set -x
+
+export ORACLE_HOME=/u01/app/oracle/product/19.0.0/db_1
+export ORACLE_SID=PDB1
+# export ORACLE_TERM=vt100
+export PATH=$ORACLE_HOME/bin:/usr/local/bin:/bin:/usr/bin:/usr/ccs/bin
+# export SHLIB_PATH=$ORACLE_HOME/lib:/usr/lib
+# export NLS_LANG=FINNISH_FINLAND.WE8ISO8859P15
+export NLS_DATE_FORMAT='YYYY-MM-DD HH24:MI:SS'
+export PV=`/bin/date +%d-%m-%Y`
+export BASE=/home/oracle/export/
+export ICLCHECK=/home/oracle/log
+export MYHOSTNAME=`/bin/hostname`
+
+
+check_errs()
+{
+        if [ $1 -ne 0 ]; then
+                echo "ERROR # $1 : $2"
+                echo "1 Export ${MYHOSTNAME}:${ORACLE_SID} failed on ${PV}" > $ICLCHECK/dba_oracle_export_${ORACLE_SID}.log
+                echo "STATUS exiting export script now"
+                exit $1
+        fi
+}
+
+
+#
+# main
+#
+date
+
+rm -f /home/oracle/export/${ORACLE_SID}/${ORACLE_SID}_FULL.dmp
+
+# start oracle export
+expdp system/oracle@PDB1 PARFILE=/home/oracle/export/exp_${ORACLE_SID}.par
+
+check_errs $? "ERROR Oracle export failed during ${MYHOSTNAME} ${ORACLE_SID} export."
+
+# if /opt/networker/bin/save -b LTO3 -L -s leksa $BASE/$PV.dmp.gz
+# then
+ #        rm $BASE/$PV.dmp.gz
+  #       echo "0 Export ${MYHOSTNAME}:${ORACLE_SID} ok on ${PV}" > $ICLCHECK/dba_oracle_export_${ORACLE_SID}.log
+# else
+#         check_errs $? "ERROR Oracle export failed during ${MYHOSTNAME} ${ORACLE_SID} export."
+# fi
+
+date
+
+echo "0 Export ${MYHOSTNAME}:${ORACLE_SID} ok on ${PV}" > $ICLCHECK/dba_oracle_export_${ORACLE_SID}.log
+
+exit 0
+
+[oracle@fiorap01 ~]$ cat /u02/export/exp_bsat.par
+FULL=Y
+DIRECTORY=expbup
+DUMPFILE=PDB1_FULL.dmp
+LOGFILE=PDB1_FULL.log
+METRICS=Y
+LOGTIME=ALL
+FLASHBACK_TIME=systimestamp
+EXCLUDE=SCHEMA:"IN ('PATROL')"
+
+[oracle@oraclevm export]$ sqlplus system/oracle@PDB1
+
+SQL*Plus: Release 19.0.0.0.0 - Production on Fri Feb 13 05:34:37 2026
+Version 19.29.0.0.0
+
+Copyright (c) 1982, 2025, Oracle.  All rights reserved.
+
+Last Successful login time: Fri Feb 13 2026 05:33:30 -05:00
+
+Connected to:
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.29.0.0.0
+
+SQL> CREATE OR REPLACE DIRECTORY EXPBUP AS '/home/oracle/export';
+
+[oracle@oraclevm export]$ ./full_exp_PDB1.sh
+
+SQL> set linesize 200
+SQL> col firstname format a30
+SQL> col lastname format a30
+SQL> col position format a14
+SQL> e
+SP2-0042: unknown command "e" - rest of line ignored.
+SQL> select * from management;
+
+        ID FIRSTNAME                      LASTNAME                       POSITION           SALARY
+---------- ------------------------------ ------------------------------ -------------- ----------
+         2 Jane                           Smith                          CFO                140000
+         3 Robert                         Brown                          COO                135000
+         4 Linda                          Johnson                        CTO                145000
+         5 Michael                        Williams                       CMO                130000
+         6 Elizabeth                      Jones                          VP Sales           120000
+         7 William                        Miller                         VP Marketing       118000
+         8 Patricia                       Davis                          VP Operations      122000
+         9 David                          Garcia                         VP Finance         125000
+        10 Jennifer                       Martinez                       HR Director        110000
+
+SQL> update management set lastname='Buchanan' where id = 2;
+
+1 row updated.
+
+SQL> select * from management where id = 2;
+
+        ID FIRSTNAME                      LASTNAME                       POSITION           SALARY
+---------- ------------------------------ ------------------------------ -------------- ----------
+         2 Jane                           Buchanan                       CFO                140000
+
+SQL> commit;
+
+Commit complete.
+
+
+SQL> CONNECT CASEM1/keissi@PDB1;
+
+SQL> select * from  DM_SYSOBJECT_S FETCH FIRST 5 ROWS ONLY;
+
+R_OBJECT_ID      I_HAS_FOLDER I_IS_DELETED
+---------------- ------------ ------------
+CASE_1494                   0            0
+CASE_1495                   1            1
+CASE_1496                   0            2
+CASE_1497                   1            0
+CASE_1498                   0            1
+
+SQL> delete from DM_SYSOBJECT_S WHERE R_OBJECT_ID='CASE_1498';
+
+SQL>  select * from  DM_SYSOBJECT_S FETCH FIRST 5 ROWS ONLY;
+
+R_OBJECT_ID      I_HAS_FOLDER I_IS_DELETED
+---------------- ------------ ------------
+CASE_1494                   0            0
+CASE_1495                   1            1
+CASE_1496                   0            2
+CASE_1497                   1            0
+CASE_1499                   1            2
+
+SQL> select * from DM_SYSOBJECT_S WHERE R_OBJECT_ID='CASE_1498';
+
+no rows selected
+
+SQL> commit;
+
+Commit complete.
+
+[oracle@oraclevm export]$ sqlplus system@PDB1;
+
+SQL*Plus: Release 19.0.0.0.0 - Production on Fri Feb 13 06:06:44 2026
+Version 19.29.0.0.0
+
+Copyright (c) 1982, 2025, Oracle.  All rights reserved.
+
+Enter password:
+Last Successful login time: Fri Feb 13 2026 06:02:44 -05:00
+
+Connected to:
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.29.0.0.0
+
+SQL> drop user hr cascade;
+
+User dropped.
+
+SQL> drop user CASEM1 cascade;
+
+User dropped.
+
+SQL> exit
+Disconnected from Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.29.0.0.0
+[oracle@oraclevm export]$ impdp system/oracle@PDB1 \
+>   directory=EXPBUP \
+>   dumpfile=orcl_FULL.dmp \
+>   schemas=CASEM1,HR \
+>   EXCLUDE=STATISTICS
+
+Import: Release 19.0.0.0.0 - Production on Fri Feb 13 06:08:42 2026
+Version 19.29.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Master table "SYSTEM"."SYS_IMPORT_SCHEMA_01" successfully loaded/unloaded
+Starting "SYSTEM"."SYS_IMPORT_SCHEMA_01":  system/********@PDB1 directory=EXPBUP dumpfile=orcl_FULL.dmp schemas=CASEM1,HR EXCLUDE=STATISTICS
+Processing object type DATABASE_EXPORT/SCHEMA/USER
+Processing object type DATABASE_EXPORT/SCHEMA/GRANT/SYSTEM_GRANT
+Processing object type DATABASE_EXPORT/SCHEMA/ROLE_GRANT
+Processing object type DATABASE_EXPORT/SCHEMA/DEFAULT_ROLE
+Processing object type DATABASE_EXPORT/SCHEMA/TABLESPACE_QUOTA
+Processing object type DATABASE_EXPORT/SCHEMA/SEQUENCE/SEQUENCE
+Processing object type DATABASE_EXPORT/SCHEMA/PROCACT_SCHEMA
+Processing object type DATABASE_EXPORT/SCHEMA/TABLE/TABLE
+Processing object type DATABASE_EXPORT/SCHEMA/TABLE/TABLE_DATA
+. . imported "CASEM1"."AMS_CASE_R"                       5.182 MB  200000 rows
+. . imported "CASEM1"."AMS_CASE_S"                       2.789 MB  100000 rows
+. . imported "CASEM1"."DM_SYSOBJECT_S"                   1.918 MB  100000 rows
+. . imported "CASEM1"."AMS_FOLDER_S"                     1.129 MB   50000 rows
+. . imported "HR"."EMPLOYEES"                            17.08 KB     107 rows
+. . imported "HR"."LOCATIONS"                            8.437 KB      23 rows
+. . imported "HR"."JOB_HISTORY"                          7.195 KB      10 rows
+. . imported "HR"."MANAGEMENT"                           7.125 KB       9 rows
+. . imported "HR"."JOBS"                                 7.109 KB      19 rows
+. . imported "HR"."DEPARTMENTS"                          7.125 KB      27 rows
+. . imported "HR"."COUNTRIES"                            6.367 KB      25 rows
+. . imported "HR"."REGIONS"                              5.546 KB       4 rows
+. . imported "CASEM1"."DM_SYSOBJECT_R"                   5.914 KB       0 rows
+Processing object type DATABASE_EXPORT/SCHEMA/TABLE/COMMENT
+Processing object type DATABASE_EXPORT/SCHEMA/PROCEDURE/PROCEDURE
+Processing object type DATABASE_EXPORT/SCHEMA/PROCEDURE/ALTER_PROCEDURE
+Processing object type DATABASE_EXPORT/SCHEMA/VIEW/VIEW
+Processing object type DATABASE_EXPORT/SCHEMA/TABLE/INDEX/INDEX
+Processing object type DATABASE_EXPORT/SCHEMA/TABLE/CONSTRAINT/CONSTRAINT
+Processing object type DATABASE_EXPORT/SCHEMA/TABLE/CONSTRAINT/REF_CONSTRAINT
+Processing object type DATABASE_EXPORT/SCHEMA/TABLE/TRIGGER
+Job "SYSTEM"."SYS_IMPORT_SCHEMA_01" successfully completed at Fri Feb 13 06:09:40 2026 elapsed 0 00:00:56
+
+[oracle@oraclevm export]$ sqlplus hr/hr@PDB1
+
+SQL> set linesize 200
+col firstname format a30
+col lastname format a30
+col position format a14SQL> SQL> SQL>
+SQL>
+SQL>
+SQL> select * from management;
+
+        ID FIRSTNAME                      LASTNAME                       POSITION           SALARY
+---------- ------------------------------ ------------------------------ -------------- ----------
+         2 Jane                           Smith                          CFO                140000
+         3 Robert                         Brown                          COO                135000
+         4 Linda                          Johnson                        CTO                145000
+         5 Michael                        Williams                       CMO                130000
+         6 Elizabeth                      Jones                          VP Sales           120000
+         7 William                        Miller                         VP Marketing       118000
+         8 Patricia                       Davis                          VP Operations      122000
+         9 David                          Garcia                         VP Finance         125000
+        10 Jennifer                       Martinez                       HR Director        110000
+
+9 rows selected.
+
+
+SQL> CONNECT CASEM1/keissi@PDB1;
+Connected.
+SQL> select * from DM_SYSOBJECT_S WHERE R_OBJECT_ID='CASE_1498';
+
+R_OBJECT_ID      I_HAS_FOLDER I_IS_DELETED
+---------------- ------------ ------------
+CASE_1498                   0            1

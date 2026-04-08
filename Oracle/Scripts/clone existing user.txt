@@ -1,0 +1,55 @@
+-- Clone Oracle User Creation & Grants
+SET HEADING OFF
+SET FEEDBACK OFF
+SET VERIFY OFF
+SET WRAP ON
+SET PAGESIZE 133
+SET LINESIZE 150
+
+-- Prompt for source and target usernames
+ACCEPT source_user CHAR PROMPT 'Enter source username: '
+ACCEPT target_user CHAR PROMPT 'Enter target (new) username: '
+
+-- Start spooling to file in current directory
+SPOOL &&target_user..sql
+
+-- 1. Create User with Profile and Password Hash
+SELECT 
+  'CREATE USER ' || '&&target_user' || 
+  ' PROFILE ' || profile || 
+  ' IDENTIFIED BY VALUES ''' || password || 
+  ''' DEFAULT TABLESPACE ' || default_tablespace || 
+  ' TEMPORARY TABLESPACE TEMP;'
+FROM sys.dba_users
+WHERE username = UPPER('&&source_user');
+
+-- 2. Grant System Privileges
+SELECT 
+  'GRANT ' || privilege || ' TO ' || '&&target_user' || ';'
+FROM sys.dba_sys_privs
+WHERE grantee = UPPER('&&source_user');
+
+-- 3. Grant Roles
+SELECT 
+  'GRANT ' || granted_role || ' TO ' || '&&target_user' || 
+  DECODE(admin_option, 'YES', ' WITH ADMIN OPTION;', ';')
+FROM sys.dba_role_privs
+WHERE grantee = UPPER('&&source_user');
+
+-- 4. Grant Object Privileges
+SELECT 
+  'GRANT ' || privilege || ' ON ' || owner || '.' || table_name || 
+  ' TO ' || '&&target_user' || 
+  DECODE(grantable, 'YES', ' WITH GRANT OPTION;', ';')
+FROM sys.dba_tab_privs
+WHERE grantee = UPPER('&&source_user');
+
+-- 5. Tablespace Quotas
+SELECT 
+  'ALTER USER ' || '&&target_user' || 
+  ' QUOTA ' || bytes || ' ON ' || tablespace_name || ';'
+FROM sys.dba_ts_quotas
+WHERE username = UPPER('&&source_user') AND bytes > 0;
+
+-- Stop spooling
+SPOOL OFF

@@ -1,0 +1,18 @@
+mironoffM@FI5CD5193S2Y MINGW64 /c/git/DBA (main)
+$ git clone https://git.fihava.local/dba/ansible-postgres.git
+Cloning into 'ansible-postgres'...
+fatal: unable to access 'https://git.fihava.local/dba/ansible-postgres.git/': SSL certificate problem: unable to get local issuer certificate
+
+mironoffM@FI5CD5193S2Y MINGW64 /c/git/DBA (main)
+$ git config --global http."https://git.fihava.local/".sslVerify false
+
+mironoffM@FI5CD5193S2Y MINGW64 /c/git/DBA (main)
+$ git clone https://git.fihava.local/dba/ansible-postgres.git
+Cloning into 'ansible-postgres'...
+info: please complete authentication in your browser...
+remote: Enumerating objects: 343, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (7/7), done.
+remote: Total 343 (delta 0), reused 1 (delta 0), pack-reused 336 (from 1)
+Receiving objects: 100% (343/343), 56.39 KiB | 2.56 MiB/s, done.
+Resolving deltas: 100% (169/169), done.
