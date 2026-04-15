@@ -1,0 +1,268 @@
+/* ===========================================================
+   Azure SQL HR Demo Schema
+   - Schema: hr
+   - Tables: Location, Department, Job, Employee, EmployeeSalary, LeaveRequest
+   =========================================================== */
+
+-- Create schema if not exists
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'hr')
+    EXEC('CREATE SCHEMA hr');
+GO
+
+/* -------------------------
+   Drop existing objects
+   ------------------------- */
+IF OBJECT_ID('hr.LeaveRequest', 'U') IS NOT NULL DROP TABLE hr.LeaveRequest;
+IF OBJECT_ID('hr.EmployeeSalary', 'U') IS NOT NULL DROP TABLE hr.EmployeeSalary;
+IF OBJECT_ID('hr.Employee', 'U') IS NOT NULL DROP TABLE hr.Employee;
+IF OBJECT_ID('hr.Department', 'U') IS NOT NULL DROP TABLE hr.Department;
+IF OBJECT_ID('hr.Job', 'U') IS NOT NULL DROP TABLE hr.Job;
+IF OBJECT_ID('hr.Location', 'U') IS NOT NULL DROP TABLE hr.Location;
+GO
+
+/* -------------------------
+   Base/reference tables
+   ------------------------- */
+
+CREATE TABLE hr.Location
+(
+    LocationId       INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Location PRIMARY KEY,
+    LocationCode     NVARCHAR(10) NOT NULL CONSTRAINT UQ_LocationCode UNIQUE,
+    Country          NVARCHAR(100) NOT NULL,
+    City             NVARCHAR(100) NOT NULL,
+    AddressLine1     NVARCHAR(200) NULL,
+    PostalCode       NVARCHAR(20) NULL,
+    CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Location_CreatedAt DEFAULT (SYSUTCDATETIME())
+);
+GO
+
+CREATE TABLE hr.Department
+(
+    DepartmentId     INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Department PRIMARY KEY,
+    DepartmentCode   NVARCHAR(20) NOT NULL CONSTRAINT UQ_DepartmentCode UNIQUE,
+    DepartmentName   NVARCHAR(200) NOT NULL,
+    LocationId       INT NOT NULL,
+    CostCenter       NVARCHAR(30) NULL,
+    IsActive         BIT NOT NULL CONSTRAINT DF_Department_IsActive DEFAULT (1),
+    CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Department_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT FK_Department_Location FOREIGN KEY (LocationId) REFERENCES hr.Location(LocationId)
+);
+GO
+
+CREATE TABLE hr.Job
+(
+    JobId            INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Job PRIMARY KEY,
+    JobCode          NVARCHAR(30) NOT NULL CONSTRAINT UQ_JobCode UNIQUE,
+    JobTitle         NVARCHAR(200) NOT NULL,
+    JobFamily        NVARCHAR(100) NULL,
+    Grade            TINYINT NULL,
+    MinSalary        DECIMAL(12,2) NULL,
+    MaxSalary        DECIMAL(12,2) NULL,
+    IsActive         BIT NOT NULL CONSTRAINT DF_Job_IsActive DEFAULT (1),
+    CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Job_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT CK_Job_SalaryRange CHECK (
+        (MinSalary IS NULL AND MaxSalary IS NULL)
+        OR (MinSalary IS NOT NULL AND MaxSalary IS NOT NULL AND MinSalary <= MaxSalary)
+    )
+);
+GO
+
+/* -------------------------
+   Core entity tables
+   ------------------------- */
+
+CREATE TABLE hr.Employee
+(
+    EmployeeId       INT IDENTITY(1000,1) NOT NULL CONSTRAINT PK_Employee PRIMARY KEY,
+    EmployeeNumber   NVARCHAR(20) NOT NULL CONSTRAINT UQ_EmployeeNumber UNIQUE,
+    FirstName        NVARCHAR(100) NOT NULL,
+    LastName         NVARCHAR(100) NOT NULL,
+    Email            NVARCHAR(255) NOT NULL CONSTRAINT UQ_Employee_Email UNIQUE,
+    Phone            NVARCHAR(50) NULL,
+    DateOfBirth      DATE NULL,
+    HireDate         DATE NOT NULL,
+    EmploymentStatus NVARCHAR(20) NOT NULL CONSTRAINT DF_Employee_Status DEFAULT ('ACTIVE'),
+    DepartmentId     INT NOT NULL,
+    JobId            INT NOT NULL,
+    ManagerEmployeeId INT NULL,
+    LocationId       INT NOT NULL,
+    TerminationDate  DATE NULL,
+    CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Employee_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Employee_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT FK_Employee_Department FOREIGN KEY (DepartmentId) REFERENCES hr.Department(DepartmentId),
+    CONSTRAINT FK_Employee_Job        FOREIGN KEY (JobId) REFERENCES hr.Job(JobId),
+    CONSTRAINT FK_Employee_Location   FOREIGN KEY (LocationId) REFERENCES hr.Location(LocationId),
+    CONSTRAINT FK_Employee_Manager    FOREIGN KEY (ManagerEmployeeId) REFERENCES hr.Employee(EmployeeId),
+
+    CONSTRAINT CK_Employee_Status CHECK (EmploymentStatus IN ('ACTIVE','LEAVE','TERMINATED')),
+    CONSTRAINT CK_Employee_TerminationDate CHECK (
+        (EmploymentStatus <> 'TERMINATED' AND TerminationDate IS NULL)
+        OR (EmploymentStatus = 'TERMINATED' AND TerminationDate IS NOT NULL)
+    )
+);
+GO
+
+-- Salary history (SCD type-ish)
+CREATE TABLE hr.EmployeeSalary
+(
+    EmployeeSalaryId BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_EmployeeSalary PRIMARY KEY,
+    EmployeeId       INT NOT NULL,
+    SalaryAmount     DECIMAL(12,2) NOT NULL,
+    CurrencyCode     CHAR(3) NOT NULL CONSTRAINT DF_EmployeeSalary_Currency DEFAULT ('EUR'),
+    EffectiveFrom    DATE NOT NULL,
+    EffectiveTo      DATE NULL,
+    ChangeReason     NVARCHAR(200) NULL,
+    CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_EmployeeSalary_CreatedAt DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT FK_EmployeeSalary_Employee FOREIGN KEY (EmployeeId) REFERENCES hr.Employee(EmployeeId),
+    CONSTRAINT CK_EmployeeSalary_Amount CHECK (SalaryAmount > 0),
+    CONSTRAINT CK_EmployeeSalary_Range CHECK (EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom)
+);
+GO
+
+-- Leave requests
+CREATE TABLE hr.LeaveRequest
+(
+    LeaveRequestId   BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_LeaveRequest PRIMARY KEY,
+    EmployeeId       INT NOT NULL,
+    LeaveType        NVARCHAR(30) NOT NULL,  -- ANNUAL, SICK, UNPAID, PARENTAL
+    StartDate        DATE NOT NULL,
+    EndDate          DATE NOT NULL,
+    Status           NVARCHAR(20) NOT NULL CONSTRAINT DF_LeaveRequest_Status DEFAULT ('PENDING'),
+    RequestedAt      DATETIME2(0) NOT NULL CONSTRAINT DF_LeaveRequest_RequestedAt DEFAULT (SYSUTCDATETIME()),
+    ApprovedByEmployeeId INT NULL,
+    ApprovedAt       DATETIME2(0) NULL,
+    Comment          NVARCHAR(500) NULL,
+
+    CONSTRAINT FK_LeaveRequest_Employee FOREIGN KEY (EmployeeId) REFERENCES hr.Employee(EmployeeId),
+    CONSTRAINT FK_LeaveRequest_Approver FOREIGN KEY (ApprovedByEmployeeId) REFERENCES hr.Employee(EmployeeId),
+    CONSTRAINT CK_LeaveRequest_DateRange CHECK (EndDate >= StartDate),
+    CONSTRAINT CK_LeaveRequest_Status CHECK (Status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),
+    CONSTRAINT CK_LeaveRequest_Type CHECK (LeaveType IN ('ANNUAL','SICK','UNPAID','PARENTAL'))
+);
+GO
+
+/* -------------------------
+   Helpful indexes
+   ------------------------- */
+
+CREATE INDEX IX_Employee_DepartmentId ON hr.Employee(DepartmentId);
+CREATE INDEX IX_Employee_ManagerId ON hr.Employee(ManagerEmployeeId);
+CREATE INDEX IX_Salary_Employee_EffectiveFrom ON hr.EmployeeSalary(EmployeeId, EffectiveFrom DESC);
+CREATE INDEX IX_Leave_Employee_StartDate ON hr.LeaveRequest(EmployeeId, StartDate DESC);
+GO
+
+/* -------------------------
+   Sample data
+   ------------------------- */
+
+-- Locations
+INSERT INTO hr.Location (LocationCode, Country, City, AddressLine1, PostalCode)
+VALUES
+('FI-TRE', N'Finland', N'Tampere', N'Hämeenkatu 10', N'33100'),
+('FI-HEL', N'Finland', N'Helsinki', N'Mannerheimintie 1', N'00100'),
+('SE-STO', N'Sweden',  N'Stockholm', N'Sveavägen 20', N'11157'),
+('US-NYC', N'United States', N'New York', N'350 5th Ave', N'10118');
+
+-- Departments
+INSERT INTO hr.Department (DepartmentCode, DepartmentName, LocationId, CostCenter)
+SELECT 'HR',  N'Human Resources',  l.LocationId, 'CC-100'
+FROM hr.Location l WHERE l.LocationCode = 'FI-HEL';
+
+INSERT INTO hr.Department (DepartmentCode, DepartmentName, LocationId, CostCenter)
+SELECT 'ENG', N'Engineering',      l.LocationId, 'CC-200'
+FROM hr.Location l WHERE l.LocationCode = 'FI-TRE';
+
+INSERT INTO hr.Department (DepartmentCode, DepartmentName, LocationId, CostCenter)
+SELECT 'FIN', N'Finance',          l.LocationId, 'CC-300'
+FROM hr.Location l WHERE l.LocationCode = 'FI-HEL';
+
+INSERT INTO hr.Department (DepartmentCode, DepartmentName, LocationId, CostCenter)
+SELECT 'SAL', N'Sales',            l.LocationId, 'CC-400'
+FROM hr.Location l WHERE l.LocationCode = 'SE-STO';
+
+-- Jobs
+INSERT INTO hr.Job (JobCode, JobTitle, JobFamily, Grade, MinSalary, MaxSalary)
+VALUES
+('HR-MGR',   N'HR Manager',          N'HR',        6,  5500,  8500),
+('HR-ANL',   N'HR Analyst',          N'HR',        4,  3500,  5500),
+('ENG-DEV',  N'Software Developer',  N'Engineering',4, 3800,  6500),
+('ENG-LEAD', N'Tech Lead',           N'Engineering',6, 6000,  9500),
+('FIN-ACC',  N'Accountant',          N'Finance',   4, 3600,  6000),
+('SAL-REP',  N'Sales Representative',N'Sales',     4, 3000,  7000),
+('SAL-MGR',  N'Sales Manager',       N'Sales',     6, 6000, 10000);
+
+-- Employees (insert managers first)
+DECLARE @LocHEL INT = (SELECT LocationId FROM hr.Location WHERE LocationCode = 'FI-HEL');
+DECLARE @LocTRE INT = (SELECT LocationId FROM hr.Location WHERE LocationCode = 'FI-TRE');
+DECLARE @LocSTO INT = (SELECT LocationId FROM hr.Location WHERE LocationCode = 'SE-STO');
+
+DECLARE @DeptHR  INT = (SELECT DepartmentId FROM hr.Department WHERE DepartmentCode = 'HR');
+DECLARE @DeptENG INT = (SELECT DepartmentId FROM hr.Department WHERE DepartmentCode = 'ENG');
+DECLARE @DeptFIN INT = (SELECT DepartmentId FROM hr.Department WHERE DepartmentCode = 'FIN');
+DECLARE @DeptSAL INT = (SELECT DepartmentId FROM hr.Department WHERE DepartmentCode = 'SAL');
+
+DECLARE @JobHRMGR   INT = (SELECT JobId FROM hr.Job WHERE JobCode = 'HR-MGR');
+DECLARE @JobHRANL   INT = (SELECT JobId FROM hr.Job WHERE JobCode = 'HR-ANL');
+DECLARE @JobENGLEAD INT = (SELECT JobId FROM hr.Job WHERE JobCode = 'ENG-LEAD');
+DECLARE @JobENGDEV  INT = (SELECT JobId FROM hr.Job WHERE JobCode = 'ENG-DEV');
+DECLARE @JobFINACC  INT = (SELECT JobId FROM hr.Job WHERE JobCode = 'FIN-ACC');
+DECLARE @JobSALMGR  INT = (SELECT JobId FROM hr.Job WHERE JobCode = 'SAL-MGR');
+DECLARE @JobSALREP  INT = (SELECT JobId FROM hr.Job WHERE JobCode = 'SAL-REP');
+
+-- Top managers
+INSERT INTO hr.Employee (EmployeeNumber, FirstName, LastName, Email, Phone, DateOfBirth, HireDate, EmploymentStatus,
+                         DepartmentId, JobId, ManagerEmployeeId, LocationId)
+VALUES
+('E-0001', N'Marika',   N'Kauppila',  N'marika.kauppila@contoso.example', N'+358 40 111 1222', '1982-03-12', '2016-08-15', 'ACTIVE', @DeptHR,  @JobHRMGR,   NULL,    @LocHEL),
+('E-0002', N'Anne',  N'Laasanen',     N'anne.laasanen@contoso.example',  N'+358 40 333 1444', '1985-11-05', '2014-02-01', 'ACTIVE', @DeptENG, @JobENGLEAD, NULL,    @LocTRE),
+('E-0003', N'Jouni',   N'Sundqvist',      N'jouni.sundqvist@contoso.example',    N'+46 70 555 1666', '1981-06-18', '2017-01-10', 'ACTIVE', @DeptSAL, @JobSALMGR,  NULL,    @LocSTO);
+
+DECLARE @MgrHR  INT = (SELECT EmployeeId FROM hr.Employee WHERE EmployeeNumber = 'E-0001');
+DECLARE @MgrENG INT = (SELECT EmployeeId FROM hr.Employee WHERE EmployeeNumber = 'E-0002');
+DECLARE @MgrSAL INT = (SELECT EmployeeId FROM hr.Employee WHERE EmployeeNumber = 'E-0003');
+
+-- Individual contributors
+INSERT INTO hr.Employee (EmployeeNumber, FirstName, LastName, Email, Phone, DateOfBirth, HireDate, EmploymentStatus,
+                         DepartmentId, JobId, ManagerEmployeeId, LocationId)
+VALUES
+('E-0101', N'Marko',   N'Smirnoff',  N'marko.smirnoff@contoso.example', N'+358 40 777 8888', '1988-09-22', '2020-05-04', 'ACTIVE', @DeptENG, @JobENGDEV, @MgrENG, @LocTRE),
+('E-0102', N'Eila',   N'Kiviniemi',  N'eila.kiviniemi@contoso.example',N'+358 40 222 9999', '1991-01-14', '2021-03-15', 'ACTIVE', @DeptHR,  @JobHRANL, @MgrHR,  @LocHEL),
+('E-0103', N'Ville',   N'Vallaton',     N'ville.vallaton@contoso.example',   N'+358 40 121 2121', '1990-12-01', '2022-09-01', 'ACTIVE', @DeptFIN, @JobFINACC, NULL,    @LocHEL),
+('E-0104', N'Sasra',    N'Rödberg',      N'saara.rodberg@contoso.example',     N'+46 70 777 1212', '1993-04-09', '2023-02-20', 'ACTIVE', @DeptSAL, @JobSALREP, @MgrSAL, @LocSTO);
+
+DECLARE @EmpMarko INT = (SELECT EmployeeId FROM hr.Employee WHERE EmployeeNumber = 'E-0101');
+DECLARE @EmpElina INT = (SELECT EmployeeId FROM hr.Employee WHERE EmployeeNumber = 'E-0102');
+DECLARE @EmpVille INT = (SELECT EmployeeId FROM hr.Employee WHERE EmployeeNumber = 'E-0103');
+DECLARE @EmpSara  INT = (SELECT EmployeeId FROM hr.Employee WHERE EmployeeNumber = 'E-0104');
+
+-- Salaries (history)
+INSERT INTO hr.EmployeeSalary (EmployeeId, SalaryAmount, CurrencyCode, EffectiveFrom, EffectiveTo, ChangeReason)
+VALUES
+(@MgrHR,    7600, 'EUR', '2023-01-01', NULL, N'Annual review'),
+(@MgrENG,   9000, 'EUR', '2023-01-01', NULL, N'Promotion to Tech Lead'),
+(@MgrSAL,   8500, 'EUR', '2023-01-01', NULL, N'Role adjustment'),
+
+(@EmpMarko, 5200, 'EUR', '2023-01-01', '2024-12-31', N'Initial salary'),
+(@EmpMarko, 5600, 'EUR', '2025-01-01', NULL,         N'Annual increase'),
+
+(@EmpElina, 4100, 'EUR', '2024-01-01', NULL, N'Initial salary'),
+(@EmpVille, 4300, 'EUR', '2024-06-01', NULL, N'Initial salary'),
+(@EmpSara,  4500, 'EUR', '2024-04-01', NULL, N'Initial salary');
+
+-- Leave requests
+INSERT INTO hr.LeaveRequest (EmployeeId, LeaveType, StartDate, EndDate, Status, ApprovedByEmployeeId, ApprovedAt, Comment)
+VALUES
+(@EmpMarko, 'ANNUAL',  '2026-06-15', '2026-06-26', 'APPROVED', @MgrENG, SYSUTCDATETIME(), N'Approved - summer vacation'),
+(@EmpElina, 'SICK',    '2026-03-03', '2026-03-05', 'APPROVED', @MgrHR,  SYSUTCDATETIME(), N'Get well soon'),
+(@EmpSara,  'UNPAID',  '2026-05-10', '2026-05-12', 'PENDING',  NULL,    NULL,             N'Family reasons');
+GO
+
+/* -------------------------
+   Quick sanity checks
+   ------------------------- */
+SELECT TOP (10) * FROM hr.Employee ORDER BY EmployeeId;
+SELECT TOP (10) * FROM hr.EmployeeSalary ORDER BY EmployeeSalaryId DESC;
+SELECT TOP (10) * FROM hr.LeaveRequest ORDER BY LeaveRequestId DESC;
+GO
