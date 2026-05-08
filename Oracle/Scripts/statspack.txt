@@ -113,8 +113,8 @@ WHERE snap_time > SYSDATE - 30;
 SELECT snap_id,
        TO_CHAR(snap_time,'YYYY-MM-DD HH24:MI') snap_time
 FROM   perfstat.stats$snapshot
-WHERE  snap_id BETWEEN 73 AND 819
+WHERE  snap_id BETWEEN 11 AND 35
 ORDER  BY snap_id;
 
-
+@?/rdbms/admin/spreport.sql
 @spreport.sql

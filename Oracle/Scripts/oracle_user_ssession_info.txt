@@ -36,3 +36,31 @@ LEFT JOIN v$pdbs p
 WHERE s.type = 'USER'
 AND s.username NOT IN ('SYS','SYSRAC')
 ORDER BY s.con_id, s.logon_time;
+
+
+SQL> SELECT
+  parsing_schema_name,
+  TO_CHAR(MAX(last_active_time), 'YYYY-MM-DD HH24:MI:SS') AS last_sql_activity
+FROM v$sql
+WHERE parsing_schema_name NOT IN ('SYS','SYSTEM','DBSNMP','SYSMAN')
+GROUP BY parsing_schema_name
+ORDER BY MAX(last_active_time) DESC;  2    3    4    5    6    7
+
+PARSING_SCHEMA_NAME            LAST_SQL_ACTIVITY
+------------------------------ ---------------------------------------------------------------------------
+CS_NOTEBOOK9                   2026-05-07 11:01:47
+OPSRAMP_ORACLE                 2026-05-07 11:00:17
+TS_MONITOR                     2026-05-07 10:58:42
+GSMADMIN_INTERNAL              2026-05-07 10:57:47
+CTXSYS                         2026-05-07 10:01:47
+COEUSER                        2026-05-07 09:01:22
+CSCARTRIDGE                    2026-05-07 05:48:23
+REGDB                          2026-05-06 23:12:03
+ORACLE_OCM                     2026-05-06 23:00:02
+
+9 rows selected.
+
+CS_NOTEBOOK9                   2026-05-07 11:01:47
+COEUSER                        2026-05-07 09:01:22
+CSCARTRIDGE                    2026-05-07 05:48:23
+REGDB                          2026-05-06 23:12:03

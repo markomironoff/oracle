@@ -1,0 +1,613 @@
+Lab test drop all objects
+
+SQL> show pdbs;
+
+    CON_ID CON_NAME                       OPEN MODE  RESTRICTED
+---------- ------------------------------ ---------- ----------
+         2 PDB$SEED                       MOUNTED
+         3 PDB1                           MOUNTED
+SQL> alter session set container=PDB1;
+
+CREATE USER LABTEST
+IDENTIFIED BY labtest
+DEFAULT TABLESPACE USERS
+TEMPORARY TABLESPACE TEMP
+QUOTA UNLIMITED ON USERS;
+
+GRANT CREATE SESSION,
+      CREATE TABLE,
+      CREATE VIEW,
+      CREATE SEQUENCE,
+      CREATE PROCEDURE,
+      CREATE TRIGGER
+TO LABTEST;
+
+SQL> alter session set container=PDB1;
+
+Session altered.
+
+SQL> grant create type to labtest;
+
+
+
+SQL> CONNECT LABTEST/labtest@PDB1
+Connected.
+
+CREATE SEQUENCE seq_order_id
+START WITH 1
+INCREMENT BY 1
+NOCACHE;
+
+CREATE TABLE customers (
+  customer_id NUMBER PRIMARY KEY,
+  name        VARCHAR2(100)
+);
+
+CREATE TABLE orders (
+  order_id    NUMBER PRIMARY KEY,
+  customer_id NUMBER NOT NULL,
+  product     VARCHAR2(100),
+  CONSTRAINT fk_orders_customer
+    FOREIGN KEY (customer_id)
+    REFERENCES customers(customer_id)
+);
+
+CREATE OR REPLACE TRIGGER trg_orders_bir
+BEFORE INSERT ON orders
+FOR EACH ROW
+BEGIN
+  IF :new.order_id IS NULL THEN
+    SELECT seq_order_id.NEXTVAL
+    INTO   :new.order_id
+    FROM   dual;
+  END IF;
+END;
+/
+
+INSERT INTO customers VALUES (1, 'Alice');
+INSERT INTO customers VALUES (2, 'Bob');
+
+INSERT INTO orders (customer_id, product) VALUES (1, 'Bike');
+INSERT INTO orders (customer_id, product) VALUES (2, 'Chair');
+
+COMMIT;
+
+SELECT * FROM orders;
+
+CREATE VIEW v_orders AS
+SELECT o.order_id,
+       c.name AS customer_name,
+       o.product
+FROM   orders o
+JOIN   customers c
+ON     c.customer_id = o.customer_id;
+
+CREATE OR REPLACE FUNCTION order_count
+RETURN NUMBER
+IS
+  v_cnt NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO v_cnt FROM orders;
+  RETURN v_cnt;
+END;
+/
+
+SELECT order_count FROM dual;
+
+CREATE OR REPLACE PROCEDURE add_order (
+  p_customer_id NUMBER,
+  p_product     VARCHAR2
+)
+IS
+BEGIN
+  INSERT INTO orders (customer_id, product)
+  VALUES (p_customer_id, p_product);
+END;
+/
+
+
+BEGIN
+  add_order(1, 'Book');
+END;
+/
+
+SQL> conn / as sysdba
+Connected.
+
+SELECT object_type, COUNT(*)
+FROM   all_objects 
+WHERE  owner='LABTEST'
+GROUP  BY object_type;
+
+SELECT object_type, COUNT(*)
+FROM   all_objects 
+WHERE  owner='LABTEST'
+GROUP  BY object_type;
+
+SQL> SELECT object_type, COUNT(*)
+FROM   all_objects
+WHERE  owner='LABTEST'
+GROUP  BY object_type;  2    3    4
+
+CREATE OR REPLACE TYPE order_rowtype AS OBJECT (
+  order_id    NUMBER,
+  customer    VARCHAR2(100),
+  product     VARCHAR2(100)
+);
+/
+
+CREATE OR REPLACE TYPE order_tabletype AS TABLE OF order_rowtype;
+/
+
+CREATE TABLE order_archive (
+  archive_id NUMBER PRIMARY KEY,
+  orders     order_tabletype
+)
+NESTED TABLE orders STORE AS order_archive_nt;
+
+CREATE OR REPLACE TYPE BODY order_rowtype AS
+  MEMBER FUNCTION summary RETURN VARCHAR2 IS
+  BEGIN
+    RETURN 'Order ' || order_id || ': ' || product;
+  END;
+END;
+/
+
+INSERT INTO order_archive VALUES (
+  1,
+  order_tabletype(
+    order_rowtype(1, 'Alice', 'Bike'),
+    order_rowtype(2, 'Bob',   'Chair')
+  )
+);
+
+COMMIT;
+
+SELECT a.archive_id, t.order_id, t.product
+FROM   order_archive a,
+       TABLE(a.orders) t;
+
+SELECT type_name, typecode
+FROM   user_types
+ORDER  BY type_name;
+
+SELECT name, type, referenced_name, referenced_type
+FROM   user_dependencies
+WHERE  referenced_type = 'TYPE';
+
+SELECT object_type, COUNT(*)
+FROM   all_objects
+WHERE  owner = 'LABTEST'
+GROUP  BY object_type;
+
+CREATE TABLE not_dropped_orders (
+  order_id    NUMBER PRIMARY KEY,
+  customer_id NUMBER NOT NULL,
+  product     VARCHAR2(100)
+);
+
+INSERT INTO not_dropped_orders (order_id, customer_id, product) VALUES (123,3, 'Motorcycle');
+INSERT INTO not_dropped_orders (order_id, customer_id, product) VALUES (456,4, 'Bed');
+
+COMMIT;
+
+ SELECT object_type, COUNT(*)
+FROM   all_objects
+WHERE  owner = 'LABTEST'
+GROUP  BY object_type;
+
+OBJECT_TYPE               COUNT(*)
+----------------------- ----------
+INDEX                            6
+TRIGGER                          1
+TYPE BODY                        1
+PROCEDURE                        1
+FUNCTION                         1
+SEQUENCE                         1
+TYPE                             2
+TABLE                            5
+VIEW                             1
+
+9 rows selected.
+
+
+SQL> create or replace directory DATA_PUMP_DIR as '/u01/app/oracle/backup';
+
+Directory created.
+
+
+vi exp_labtest.par
+
+directory=DATA_PUMP_DIR
+dumpfile=labtest_schema.dmp
+logfile=exp_labtest.log
+schemas=LABTEST
+metrics=YES
+logtime=ALL
+
+[oracle@oraclevm backup]$ export ORACLE_PDB_SID=PDB1
+[oracle@oraclevm backup]$ expdp \"/ as sysdba\" PARFILE=exp_labtest.par
+[oracle@oraclevm backup]$ export ORACLE_PDB_SID=PDB1
+
+Export: Release 19.0.0.0.0 - Production on Fri May 8 03:36:41 2026
+Version 19.29.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+08-MAY-26 03:37:05.032: Starting "SYS"."SYS_EXPORT_SCHEMA_01":  "/******** AS SYSDBA" PARFILE=exp_labtest.par
+08-MAY-26 03:37:07.659: W-1 Startup took 2 seconds
+08-MAY-26 03:37:22.960: W-1 Processing object type SCHEMA_EXPORT/TABLE/TABLE_DATA
+08-MAY-26 03:37:24.500: W-1 Processing object type SCHEMA_EXPORT/TABLE/INDEX/STATISTICS/INDEX_STATISTICS
+08-MAY-26 03:37:24.979: W-1      Completed 6 INDEX_STATISTICS objects in 0 seconds
+08-MAY-26 03:37:26.053: W-1 Processing object type SCHEMA_EXPORT/TABLE/STATISTICS/TABLE_STATISTICS
+08-MAY-26 03:37:26.280: W-1      Completed 5 TABLE_STATISTICS objects in 1 seconds
+08-MAY-26 03:37:50.263: W-1 Processing object type SCHEMA_EXPORT/STATISTICS/MARKER
+08-MAY-26 03:37:51.872: W-1      Completed 1 MARKER objects in 25 seconds
+08-MAY-26 03:37:52.264: W-1 Processing object type SCHEMA_EXPORT/USER
+08-MAY-26 03:37:52.484: W-1      Completed 1 USER objects in 0 seconds
+08-MAY-26 03:37:52.808: W-1 Processing object type SCHEMA_EXPORT/SYSTEM_GRANT
+08-MAY-26 03:37:52.975: W-1      Completed 7 SYSTEM_GRANT objects in 0 seconds
+08-MAY-26 03:37:53.471: W-1 Processing object type SCHEMA_EXPORT/DEFAULT_ROLE
+08-MAY-26 03:37:53.690: W-1      Completed 1 DEFAULT_ROLE objects in 0 seconds
+08-MAY-26 03:37:54.460: W-1 Processing object type SCHEMA_EXPORT/TABLESPACE_QUOTA
+08-MAY-26 03:37:54.593: W-1      Completed 1 TABLESPACE_QUOTA objects in 0 seconds
+08-MAY-26 03:37:56.011: W-1 Processing object type SCHEMA_EXPORT/PRE_SCHEMA/PROCACT_SCHEMA
+08-MAY-26 03:37:56.236: W-1      Completed 1 PROCACT_SCHEMA objects in 2 seconds
+08-MAY-26 03:38:01.380: W-1 Processing object type SCHEMA_EXPORT/TYPE/TYPE_SPEC
+08-MAY-26 03:38:01.598: W-1      Completed 2 TYPE objects in 2 seconds
+08-MAY-26 03:38:03.838: W-1 Processing object type SCHEMA_EXPORT/SEQUENCE/SEQUENCE
+08-MAY-26 03:38:04.084: W-1      Completed 1 SEQUENCE objects in 0 seconds
+08-MAY-26 03:38:26.921: W-1 Processing object type SCHEMA_EXPORT/TABLE/TABLE
+08-MAY-26 03:39:15.404: W-1      Completed 4 TABLE objects in 56 seconds
+08-MAY-26 03:39:22.570: W-1 Processing object type SCHEMA_EXPORT/FUNCTION/FUNCTION
+08-MAY-26 03:39:22.793: W-1      Completed 1 FUNCTION objects in 0 seconds
+08-MAY-26 03:39:24.379: W-1 Processing object type SCHEMA_EXPORT/PROCEDURE/PROCEDURE
+08-MAY-26 03:39:24.545: W-1      Completed 1 PROCEDURE objects in 0 seconds
+08-MAY-26 03:39:25.992: W-1 Processing object type SCHEMA_EXPORT/FUNCTION/ALTER_FUNCTION
+08-MAY-26 03:39:26.202: W-1      Completed 1 ALTER_FUNCTION objects in 1 seconds
+08-MAY-26 03:39:26.577: W-1 Processing object type SCHEMA_EXPORT/PROCEDURE/ALTER_PROCEDURE
+08-MAY-26 03:39:26.829: W-1      Completed 1 ALTER_PROCEDURE objects in 0 seconds
+08-MAY-26 03:39:33.817: W-1 Processing object type SCHEMA_EXPORT/VIEW/VIEW
+08-MAY-26 03:39:34.080: W-1      Completed 1 VIEW objects in 7 seconds
+08-MAY-26 03:39:36.383: W-1 Processing object type SCHEMA_EXPORT/TYPE/TYPE_BODY
+08-MAY-26 03:39:36.512: W-1      Completed 1 TYPE_BODY objects in 1 seconds
+08-MAY-26 03:39:39.796: W-1 Processing object type SCHEMA_EXPORT/TABLE/INDEX/INDEX
+08-MAY-26 03:39:40.057: W-1      Completed 1 INDEX objects in 3 seconds
+08-MAY-26 03:39:42.835: W-1 Processing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/CONSTRAINT
+08-MAY-26 03:39:43.008: W-1      Completed 4 CONSTRAINT objects in 2 seconds
+08-MAY-26 03:39:49.187: W-1 Processing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/REF_CONSTRAINT
+08-MAY-26 03:39:49.465: W-1      Completed 1 REF_CONSTRAINT objects in 1 seconds
+08-MAY-26 03:39:50.032: W-1 Processing object type SCHEMA_EXPORT/TABLE/TRIGGER
+08-MAY-26 03:39:50.214: W-1      Completed 1 TRIGGER objects in 1 seconds
+08-MAY-26 03:40:06.886: W-1 . . exported "LABTEST"."CUSTOMERS"                         5.5 KB       2 rows in 0 seconds using direct_path
+08-MAY-26 03:40:07.153: W-1 . . exported "LABTEST"."NOT_DROPPED_ORDERS"              5.953 KB       2 rows in 1 seconds using direct_path
+08-MAY-26 03:40:07.371: W-1 . . exported "LABTEST"."ORDERS"                          5.945 KB       3 rows in 0 seconds using direct_path
+08-MAY-26 03:40:07.537: W-1 . . exported "LABTEST"."ORDER_ARCHIVE"                   5.976 KB       1 rows in 0 seconds using direct_path
+08-MAY-26 03:40:07.749: W-1 . . exported "LABTEST"."ORDER_ARCHIVE_NT"                7.117 KB       2 rows in 0 seconds using direct_path
+08-MAY-26 03:40:08.904: W-1      Completed 5 SCHEMA_EXPORT/TABLE/TABLE_DATA objects in 1 seconds
+08-MAY-26 03:40:12.708: W-1 Master table "SYS"."SYS_EXPORT_SCHEMA_01" successfully loaded/unloaded
+08-MAY-26 03:40:12.906: ******************************************************************************
+08-MAY-26 03:40:12.907: Dump file set for SYS.SYS_EXPORT_SCHEMA_01 is:
+08-MAY-26 03:40:12.913:   /u01/app/oracle/backup/407A139ABD079EB0E0650A00276A220E/labtest_schema.dmp
+08-MAY-26 03:40:13.222: Job "SYS"."SYS_EXPORT_SCHEMA_01" successfully completed at Fri May 8 03:40:13 2026 elapsed 0 00:03:23
+
+## drop all
+### must have this exception:
+
+-- Tables to keep
+AND table_name NOT IN (
+  'CONFIG_TABLE',
+  'STATIC_LOOKUP',
+  'REFERENCE_DATA'
+)
+
+-- MViews to keep
+AND mview_name NOT IN (
+  'MV_CONFIG_CACHE',
+  'MV_REFERENCE_DATA'
+)
+
+SQL>
+	   
+SET SERVEROUTPUT ON SIZE UNLIMITED
+WHENEVER SQLERROR CONTINUE
+
+DECLARE
+  PROCEDURE drop_obj(p_sql VARCHAR2) IS
+  BEGIN
+    EXECUTE IMMEDIATE p_sql;
+    DBMS_OUTPUT.put_line('DROPPED: ' || p_sql);
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.put_line('SKIPPED: ' || p_sql || ' -- ' || SQLERRM);
+  END;
+BEGIN
+  DBMS_OUTPUT.put_line('=== DROP START '||TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS')||' ===');
+
+  ------------------------------------------------------------------
+  -- 1) MATERIALIZED VIEW LOGS
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT master
+    FROM   dba_mview_logs
+    WHERE  log_owner = 'LABTEST'
+  ) LOOP
+    drop_obj('DROP MATERIALIZED VIEW LOG ON LABTEST.'||r.master);
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 2) MATERIALIZED VIEWS
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT mview_name
+    FROM   dba_mviews
+    WHERE  owner = 'LABTEST'
+  ) LOOP
+    drop_obj('DROP MATERIALIZED VIEW LABTEST.'||r.mview_name);
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 3) TRIGGERS
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT trigger_name
+    FROM   dba_triggers
+    WHERE  owner = 'LABTEST'
+  ) LOOP
+    drop_obj('DROP TRIGGER LABTEST.'||r.trigger_name);
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 4) VIEWS
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT view_name
+    FROM   dba_views
+    WHERE  owner = 'LABTEST'
+  ) LOOP
+    drop_obj('DROP VIEW LABTEST.'||r.view_name||' CASCADE CONSTRAINTS');
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 5) PACKAGES / PROCEDURES / FUNCTIONS
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT object_type, object_name
+    FROM   dba_objects
+    WHERE  owner = 'LABTEST'
+    AND    object_type IN (
+           'PACKAGE','PACKAGE BODY',
+           'PROCEDURE','FUNCTION'
+         )
+  ) LOOP
+    drop_obj('DROP '||r.object_type||' LABTEST.'||r.object_name);
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 6) TYPE BODIES (must be first)
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT type_name
+    FROM   dba_types
+    WHERE  owner = 'LABTEST'
+    AND    typecode IN ('OBJECT','COLLECTION')
+  ) LOOP
+    BEGIN
+      drop_obj('DROP TYPE BODY LABTEST.'||r.type_name);
+    EXCEPTION
+      WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 7) TYPES
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT type_name
+    FROM   dba_types
+    WHERE  owner = 'LABTEST'
+  ) LOOP
+    drop_obj('DROP TYPE LABTEST.'||r.type_name||' FORCE');
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 8) SEQUENCES
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT sequence_name
+    FROM   dba_sequences
+    WHERE  sequence_owner = 'LABTEST'
+  ) LOOP
+    drop_obj('DROP SEQUENCE LABTEST.'||r.sequence_name);
+  END LOOP;
+
+  ------------------------------------------------------------------
+  -- 9) TABLES (PK/FK handled via CASCADE CONSTRAINTS)
+  ------------------------------------------------------------------
+  FOR r IN (
+    SELECT table_name
+    FROM   dba_tables
+    WHERE  owner = 'LABTEST'
+	AND table_name NOT IN (
+  'NOT_DROPPED_ORDERS'
+)
+  ) LOOP
+    drop_obj('DROP TABLE LABTEST.'||r.table_name||' CASCADE CONSTRAINTS PURGE');
+  END LOOP;
+
+  DBMS_OUTPUT.put_line('=== DROP END '||TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS')||' ===');
+END;
+/ 
+
+=== DROP START 2026-05-08 03:45:01 ===
+DROPPED: DROP TRIGGER LABTEST.TRG_ORDERS_BIR
+DROPPED: DROP VIEW LABTEST.V_ORDERS CASCADE CONSTRAINTS
+DROPPED: DROP FUNCTION LABTEST.ORDER_COUNT
+DROPPED: DROP PROCEDURE LABTEST.ADD_ORDER
+DROPPED: DROP TYPE BODY LABTEST.ORDER_ROWTYPE
+SKIPPED: DROP TYPE BODY LABTEST.ORDER_TABLETYPE -- ORA-04043: object
+ORDER_TABLETYPE does not exist
+DROPPED: DROP TYPE LABTEST.ORDER_ROWTYPE FORCE
+DROPPED: DROP TYPE LABTEST.ORDER_TABLETYPE FORCE
+DROPPED: DROP SEQUENCE LABTEST.SEQ_ORDER_ID
+DROPPED: DROP TABLE LABTEST.CUSTOMERS CASCADE CONSTRAINTS PURGE
+DROPPED: DROP TABLE LABTEST.ORDERS CASCADE CONSTRAINTS PURGE
+DROPPED: DROP TABLE LABTEST.ORDER_ARCHIVE CASCADE CONSTRAINTS PURGE
+=== DROP END 2026-05-08 03:45:06 ===
+
+PL/SQL procedure successfully completed.
+
+SQL> SELECT index_name,
+       table_name
+FROM   all_indexes
+WHERE  owner = 'LABTEST';  2    3    4
+
+INDEX_NAME
+--------------------------------------------------------------------------------
+TABLE_NAME
+--------------------------------------------------------------------------------
+SYS_C008763
+NOT_DROPPED_ORDERS
+
+SQL> SELECT constraint_name,
+       constraint_type,
+       table_name
+FROM   all_constraints
+WHERE  owner = 'LABTEST  2    3    4    5  '
+AND    index_name = 'SYS_C008763';  6
+
+CONSTRAINT_NAME
+--------------------------------------------------------------------------------
+C
+-
+TABLE_NAME
+--------------------------------------------------------------------------------
+SYS_C008763
+P
+NOT_DROPPED_ORDERS
+
+# primary key 
+
+SQL> select * from labtest.NOT_DROPPED_ORDERS;
+
+  ORDER_ID CUSTOMER_ID
+---------- -----------
+PRODUCT
+--------------------------------------------------------------------------------
+       456           4
+Bed
+
+       123           3
+Motorcycle
+
+[oracle@oraclevm backup]$ cat imp_labtest.par
+directory=DATA_PUMP_DIR
+dumpfile=labtest_schema.dmp
+logfile=imp_labtest_data_skip.log
+
+schemas=LABTEST
+
+table_exists_action=SKIP
+exclude=DB_LINK
+metrics=YES
+logtime=ALL
+
+[oracle@oraclevm backup]$ impdp \"/ as sysdba\" PARFILE=imp_labtest.par
+
+Import: Release 19.0.0.0.0 - Production on Fri May 8 05:22:16 2026
+Version 19.29.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+08-MAY-26 05:22:30.584: W-1 Startup took 2 seconds
+08-MAY-26 05:22:33.047: W-1 Master table "SYS"."SYS_IMPORT_SCHEMA_01" successfully loaded/unloaded
+08-MAY-26 05:22:34.467: Starting "SYS"."SYS_IMPORT_SCHEMA_01":  "/******** AS SYSDBA" PARFILE=imp_labtest.par
+08-MAY-26 05:22:34.773: W-1 Processing object type SCHEMA_EXPORT/USER
+08-MAY-26 05:22:35.799: ORA-31684: Object type USER:"LABTEST" already exists
+
+08-MAY-26 05:22:36.276: W-1      Completed 1 USER objects in 0 seconds
+08-MAY-26 05:22:36.276: W-1 Processing object type SCHEMA_EXPORT/SYSTEM_GRANT
+08-MAY-26 05:22:37.125: W-1      Completed 7 SYSTEM_GRANT objects in 0 seconds
+08-MAY-26 05:22:37.125: W-1 Processing object type SCHEMA_EXPORT/DEFAULT_ROLE
+08-MAY-26 05:22:37.808: W-1      Completed 1 DEFAULT_ROLE objects in 0 seconds
+08-MAY-26 05:22:37.808: W-1 Processing object type SCHEMA_EXPORT/TABLESPACE_QUOTA
+08-MAY-26 05:22:38.533: W-1      Completed 1 TABLESPACE_QUOTA objects in 0 seconds
+08-MAY-26 05:22:38.533: W-1 Processing object type SCHEMA_EXPORT/PRE_SCHEMA/PROCACT_SCHEMA
+08-MAY-26 05:22:40.064: W-1      Completed 1 PROCACT_SCHEMA objects in 1 seconds
+08-MAY-26 05:22:40.064: W-1 Processing object type SCHEMA_EXPORT/TYPE/TYPE_SPEC
+08-MAY-26 05:22:41.436: W-1      Completed 2 TYPE objects in 1 seconds
+08-MAY-26 05:22:41.436: W-1 Processing object type SCHEMA_EXPORT/SEQUENCE/SEQUENCE
+08-MAY-26 05:22:42.569: W-1      Completed 1 SEQUENCE objects in 0 seconds
+08-MAY-26 05:22:42.569: W-1 Processing object type SCHEMA_EXPORT/TABLE/TABLE
+08-MAY-26 05:22:44.595: W-1 Table "LABTEST"."NOT_DROPPED_ORDERS" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+08-MAY-26 05:22:45.077: W-1      Completed 4 TABLE objects in 2 seconds
+08-MAY-26 05:22:45.261: W-1 Processing object type SCHEMA_EXPORT/TABLE/TABLE_DATA
+08-MAY-26 05:22:46.174: W-1 . . imported "LABTEST"."CUSTOMERS"                         5.5 KB       2 rows in 1 seconds using direct_path
+08-MAY-26 05:22:46.359: W-1 . . imported "LABTEST"."ORDERS"                          5.945 KB       3 rows in 0 seconds using direct_path
+08-MAY-26 05:22:46.640: W-1 . . imported "LABTEST"."ORDER_ARCHIVE"                   5.976 KB       1 rows in 0 seconds using direct_path
+08-MAY-26 05:23:30.693: W-1 . . imported "LABTEST"."ORDER_ARCHIVE_NT"                7.117 KB       2 rows in 44 seconds using direct_path
+08-MAY-26 05:23:31.086: W-1 Processing object type SCHEMA_EXPORT/FUNCTION/FUNCTION
+08-MAY-26 05:23:31.710: W-1      Completed 1 FUNCTION objects in 0 seconds
+08-MAY-26 05:23:31.710: W-1 Processing object type SCHEMA_EXPORT/PROCEDURE/PROCEDURE
+08-MAY-26 05:23:32.360: W-1      Completed 1 PROCEDURE objects in 0 seconds
+08-MAY-26 05:23:32.360: W-1 Processing object type SCHEMA_EXPORT/FUNCTION/ALTER_FUNCTION
+08-MAY-26 05:23:33.649: W-1      Completed 1 ALTER_FUNCTION objects in 1 seconds
+08-MAY-26 05:23:33.649: W-1 Processing object type SCHEMA_EXPORT/PROCEDURE/ALTER_PROCEDURE
+08-MAY-26 05:23:34.417: W-1      Completed 1 ALTER_PROCEDURE objects in 0 seconds
+08-MAY-26 05:23:34.417: W-1 Processing object type SCHEMA_EXPORT/VIEW/VIEW
+08-MAY-26 05:23:35.317: W-1      Completed 1 VIEW objects in 0 seconds
+08-MAY-26 05:23:35.317: W-1 Processing object type SCHEMA_EXPORT/TYPE/TYPE_BODY
+08-MAY-26 05:23:35.910: ORA-39082: Object type TYPE_BODY:"LABTEST"."ORDER_ROWTYPE" created with compilation warnings
+
+08-MAY-26 05:23:35.910: ORA-39082: Object type TYPE_BODY:"LABTEST"."ORDER_ROWTYPE" created with compilation warnings
+
+08-MAY-26 05:23:36.411: W-1      Completed 1 TYPE_BODY objects in 0 seconds
+08-MAY-26 05:23:36.865: W-1 Processing object type SCHEMA_EXPORT/TABLE/INDEX/INDEX
+08-MAY-26 05:23:37.686: W-1      Completed 1 INDEX objects in 0 seconds
+08-MAY-26 05:23:37.686: W-1 Processing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/CONSTRAINT
+08-MAY-26 05:23:39.056: W-1      Completed 4 CONSTRAINT objects in 0 seconds
+08-MAY-26 05:23:39.056: W-1 Processing object type SCHEMA_EXPORT/TABLE/INDEX/STATISTICS/INDEX_STATISTICS
+08-MAY-26 05:23:39.642: W-1      Completed 6 INDEX_STATISTICS objects in 0 seconds
+08-MAY-26 05:23:39.642: W-1 Processing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/REF_CONSTRAINT
+08-MAY-26 05:23:40.624: W-1      Completed 1 REF_CONSTRAINT objects in 1 seconds
+08-MAY-26 05:23:40.624: W-1 Processing object type SCHEMA_EXPORT/TABLE/TRIGGER
+08-MAY-26 05:23:41.554: W-1      Completed 1 TRIGGER objects in 1 seconds
+08-MAY-26 05:23:41.554: W-1 Processing object type SCHEMA_EXPORT/TABLE/STATISTICS/TABLE_STATISTICS
+08-MAY-26 05:23:42.131: W-1      Completed 5 TABLE_STATISTICS objects in 0 seconds
+08-MAY-26 05:23:42.131: W-1 Processing object type SCHEMA_EXPORT/STATISTICS/MARKER
+08-MAY-26 05:24:21.195: W-1      Completed 1 MARKER objects in 38 seconds
+08-MAY-26 05:24:21.648: W-1      Completed 4 SCHEMA_EXPORT/TABLE/TABLE_DATA objects in 45 seconds
+08-MAY-26 05:24:22.065: Job "SYS"."SYS_IMPORT_SCHEMA_01" completed with 3 error(s) at Fri May 8 05:24:22 2026 elapsed 0 00:02:02
+
+[oracle@oraclevm backup]$ sqlplus / as sysdba
+
+SQL*Plus: Release 19.0.0.0.0 - Production on Fri May 8 05:29:39 2026
+Version 19.29.0.0.0
+
+Copyright (c) 1982, 2025, Oracle.  All rights reserved.
+
+
+Connected to:
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.29.0.0.0
+
+SQL>  SELECT object_type, COUNT(*)
+FROM   all_objects
+WHERE  owner = 'LABTEST'
+GROUP  BY object_type;  2    3    4
+
+OBJECT_TYPE               COUNT(*)
+----------------------- ----------
+INDEX                            6
+TRIGGER                          1
+TYPE BODY                        1
+PROCEDURE                        1
+FUNCTION                         1
+TYPE                             2
+SEQUENCE                         1
+VIEW                             1
+TABLE                            5
+
+9 rows selected.
