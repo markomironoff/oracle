@@ -1,0 +1,36 @@
+set lines 220 pages 100
+col name format a15
+col state format a10
+col type format a8
+
+select
+    group_number,
+    name,
+    state,
+    type,
+    round(total_mb/1024,2) as total_gb,
+    round(free_mb/1024,2) as free_gb,
+    round(usable_file_mb/1024,2) as usable_free_gb,
+    round((total_mb - free_mb)/1024,2) as used_gb,
+    round(free_mb * 100 / nullif(total_mb,0), 2) as pct_free,
+    round((total_mb - free_mb) * 100 / nullif(total_mb,0), 2) as pct_used
+from v$asm_diskgroup
+order by name;
+
+### compatibility
+set lines 200 pages 100
+col name format a20
+col state format a12
+col type format a10
+col compatibility format a20
+col database_compatibility format a20
+
+select
+    group_number,
+    name,
+    state,
+    type,
+    compatibility,
+    database_compatibility
+from v$asm_diskgroup
+order by name;
