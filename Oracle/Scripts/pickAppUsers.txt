@@ -1,0 +1,48 @@
+select username from dba_users where
+username NOT IN (
+'ANONYMOUS',
+'APPQOSSYS',
+'AUDSYS',
+'CTXSYS',
+'DBSFWUSER',
+'DBSNMP',
+'DIP',
+'GGSYS',
+'GSMADMIN_INTERNAL',
+'GSMCATUSER',
+'GSMUSER',
+'OJVMSYS',
+'ORACLE_OCM',
+'OUTLN',
+'PDBADMIN',
+'REMOTE_SCHEDULER_AGENT',
+'SYS',
+'SYS$UMF',
+'SYSBACKUP',
+'SYSDG',
+'SYSKM',
+'SYSRAC',
+'SYSTEM',
+'TEXT_HEALTHCHECK',
+'WMSYS',
+'XDB',
+'XS$NULL',
+'OPSRAMP_ORACLE',
+'PERFSTAT',
+'MDDATA',
+'SI_INFORMTN_SCHEMA',
+'ORDDATA',
+'OLAPSYS',
+'GSMROOTUSER',
+'LBACSYS',
+'ORDSYS',
+'DVF',
+'MDSYS',
+'ORDPLUGINS',
+'DVSYS'
+)
+/
+
+
+ select owner,object_name,object_type from dba_objects where owner='FALCON_PROD'
+ order by object_type,object_name;
