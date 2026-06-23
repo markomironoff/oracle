@@ -1,3 +1,4 @@
+col file_name format a50
 SELECT file_name, bytes/1024/1024/1024 AS current_gb,
        maxbytes/1024/1024/1024 AS max_gb,
        autoextensible
