@@ -1,0 +1,100 @@
+Out-of-Place patching
+https://docs.oracle.com/cd/E91266_01/OPTCH/GUID-10EF5AF2-BB81-488B-8F5A-362C04E4E6BE.htm#OPTCH675
+
+# tämän hetkinen patch taso
+
+SQL> r
+  1  SELECT patch_id,
+  2         patch_type,
+  3         action,
+  4         status,
+  5         description,
+  6         action_time
+  7  FROM   dba_registry_sqlpatch
+  8  --WHERE  patch_id = 38725048
+  9* ORDER BY action_time DESC
+
+  PATCH_ID PATCH_TYPE ACTION          STATUS
+---------- ---------- --------------- -------------------------
+DESCRIPTION
+--------------------------------------------------------------------------------
+ACTION_TIME
+---------------------------------------------------------------------------
+  38291812 RU         APPLY           SUCCESS
+Database Release Update : 19.29.0.0.251021 (38291812)
+06-NOV-25 07.52.18.489466 AM
+
+  37960098 RU         APPLY           SUCCESS
+Database Release Update : 19.28.0.0.250715 (37960098)
+07-OCT-25 08.02.38.720921 AM
+
+  PATCH_ID PATCH_TYPE ACTION          STATUS
+---------- ---------- --------------- -------------------------
+DESCRIPTION
+--------------------------------------------------------------------------------
+ACTION_TIME
+---------------------------------------------------------------------------
+
+  29517242 RU         APPLY           SUCCESS
+Database Release Update : 19.3.0.0.190416 (29517242)
+06-OCT-25 03.49.15.944444 AM
+
+# backup tietokannasta
+
+rman target / cmdfile=/home/oracle/rman_backup_full_plus_archivelog.sql log=/tmp/rman_backup.log
+[oracle@oraclevm backup]$ tar -czvf ORCLDB_backup_20260623.tar.gz *.bkp
+
+# venytetään levyä
+
+C:\Users\vdiuser\VirtualBox VMs\Oracle VM Server [master +0 ~1 -0 | +4 ~0 -24 !]> C:\"Program Files"\Oracle\VirtualBox\VBoxManage.exe modifyhd "Oracle VM Server.vdi" --resize 102400
+0%...10%...20%...30%...40%...50%...60%...70%...80%...90%...100%
+
+GNOME Partition editor ISO VM:lle ja boot, resize https://www.howtogeek.com/124622/how-to-enlarge-a-virtual-machines-disk-in-virtualbox-or-vmware/
+
+[root@oraclevm ~]# df -h
+Filesystem                    Size  Used Avail Use% Mounted on
+devtmpfs                      1.8G     0  1.8G   0% /dev
+tmpfs                         1.8G  1.2G  598M  68% /dev/shm
+tmpfs                         1.8G  8.5M  1.8G   1% /run
+tmpfs                         1.8G     0  1.8G   0% /sys/fs/cgroup
+/dev/mapper/ol_oraclevm-root   44G   36G  8.3G  82% /
+/dev/sda1                    1014M  559M  456M  56% /boot
+tmpfs                         363M     0  363M   0% /run/user/0
+[root@oraclevm ~]# lsblk
+NAME                 MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                    8:0    0  100G  0 disk
+├─sda1                 8:1    0    1G  0 part /boot
+└─sda2                 8:2    0   99G  0 part
+  ├─ol_oraclevm-root 252:0    0   44G  0 lvm  /
+  └─ol_oraclevm-swap 252:1    0    5G  0 lvm  [SWAP]
+sr0                   11:0    1 1024M  0 rom
+[root@oraclevm ~]# pvresize /dev/sda2
+  Physical volume "/dev/sda2" changed
+  1 physical volume(s) resized or updated / 0 physical volume(s) not resized
+[root@oraclevm ~]# lvextend -l +100%FREE /dev/mapper/ol_oraclevm-root
+  Size of logical volume ol_oraclevm/root changed from <44.00 GiB (11263 extents) to <94.00 GiB (24063 extents).
+  Logical volume ol_oraclevm/root successfully resized.
+[root@oraclevm ~]# xfs_growfs /
+meta-data=/dev/mapper/ol_oraclevm-root isize=512    agcount=4, agsize=2883328 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=1, sparse=1, rmapbt=0
+         =                       reflink=1    bigtime=0 inobtcount=0
+data     =                       bsize=4096   blocks=11533312, imaxpct=25
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
+log      =internal log           bsize=4096   blocks=5631, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+data blocks changed from 11533312 to 24640512
+[root@oraclevm ~]# df -h .
+Filesystem                    Size  Used Avail Use% Mounted on
+/dev/mapper/ol_oraclevm-root   94G   37G   58G  39% /
+
+C:\Temp\jan2026_linux_x86-64> scp . *.zip root@127.0.1.1:/home/oracle
+
+oracle      2498    2459  0 07:49 pts/0    00:00:00 grep --color=auto smon
+[oracle@oraclevm ~]$ $ORACLE_HOME/OPatch/opatch version
+OPatch Version: 12.2.0.1.48
+
+OPatch succeeded.
+
