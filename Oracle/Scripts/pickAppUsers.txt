@@ -44,5 +44,3 @@ username NOT IN (
 /
 
 
- select owner,object_name,object_type from dba_objects where owner='FALCON_PROD'
- order by object_type,object_name;
