@@ -1,0 +1,45 @@
+## drop sequences
+set linesize 200
+col sequence_name format a30
+
+# list
+
+    SELECT sequence_name
+    FROM dba_sequences
+    WHERE sequence_owner = 'HR2'; 
+
+# spool create clauses
+
+SET LONG 100000
+SET LONGCHUNKSIZE 100000
+SET PAGESIZE 0
+SET LINESIZE 200
+
+SPOOL hr2_sequences.sql
+
+SELECT DBMS_METADATA.GET_DDL(
+         'SEQUENCE',
+         sequence_name,
+         sequence_owner
+       )
+FROM dba_sequences
+WHERE sequence_owner = 'HR2'
+ORDER BY sequence_name;
+
+SPOOL OFF
+
+# drop
+BEGIN
+  FOR r IN (
+    SELECT sequence_name
+    FROM dba_sequences
+    WHERE sequence_owner = 'HR2' 
+  ) LOOP
+    EXECUTE IMMEDIATE
+      'DROP SEQUENCE HR2.' || r.sequence_name; a
+  END LOOP;
+END;
+
+# tarkistuksia esim.
+SELECT MAX(location_id) max_location_id
+FROM hr.locations;

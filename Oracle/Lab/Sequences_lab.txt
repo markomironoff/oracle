@@ -1,0 +1,213 @@
+# Sequences transfer lab
+
+# hr schema
+
+OBJECT_NAME                                        OBJECT_TYPE
+-------------------------------------------------- -----------------------
+COUNTRY_C_ID_PK                                    INDEX
+DEPT_ID_PK                                         INDEX
+DEPT_LOCATION_IX                                   INDEX
+EMP_DEPARTMENT_IX                                  INDEX
+EMP_EMAIL_UK                                       INDEX
+EMP_EMP_ID_PK                                      INDEX
+EMP_JOB_IX                                         INDEX
+EMP_MANAGER_IX                                     INDEX
+EMP_NAME_IX                                        INDEX
+JHIST_DEPARTMENT_IX                                INDEX
+JHIST_EMPLOYEE_IX                                  INDEX
+JHIST_EMP_ID_ST_DATE_PK                            INDEX
+JHIST_JOB_IX                                       INDEX
+JOB_ID_PK                                          INDEX
+LOC_CITY_IX                                        INDEX
+LOC_COUNTRY_IX                                     INDEX
+LOC_ID_PK                                          INDEX
+LOC_STATE_PROVINCE_IX                              INDEX
+REG_ID_PK                                          INDEX
+SYS_C008730                                        INDEX
+ADD_JOB_HISTORY                                    PROCEDURE
+SECURE_DML                                         PROCEDURE
+DEPARTMENTS_SEQ                                    SEQUENCE
+EMPLOYEES_SEQ                                      SEQUENCE
+LOCATIONS_SEQ                                      SEQUENCE
+COUNTRIES                                          TABLE
+DEPARTMENTS                                        TABLE
+EMPLOYEES                                          TABLE
+JOBS                                               TABLE
+JOB_HISTORY                                        TABLE
+LOCATIONS                                          TABLE
+MANAGEMENT                                         TABLE
+REGIONS                                            TABLE
+SECURE_EMPLOYEES                                   TRIGGER
+UPDATE_JOB_HISTORY                                 TRIGGER
+EMP_DETAILS_VIEW                                   VIEW
+
+
+SQL> col sequence_name format a20
+SQL> r
+  1  SELECT sequence_name,
+  2         last_number,
+  3         cache_size
+  4  FROM dba_sequences
+  5  WHERE sequence_owner='HR'
+  6* ORDER BY sequence_name
+
+SEQUENCE_NAME        LAST_NUMBER CACHE_SIZE
+-------------------- ----------- ----------
+DEPARTMENTS_SEQ              280          0
+EMPLOYEES_SEQ                207          0
+LOCATIONS_SEQ               3300          0
+
+SQL> SELECT MAX(department_id) max_department_id
+FROM hr.departments;
+
+SELECT MAX(employee_id) max_employee_id
+FROM hr.employees;
+
+SELECT MAX(location_id) max_location_id
+FROM hr.locations;  2
+MAX_DEPARTMENT_ID
+-----------------
+              270
+
+SQL> SQL>   2
+MAX_EMPLOYEE_ID
+---------------
+            206
+
+SQL> SQL>   2
+
+MAX_LOCATION_ID
+---------------
+           3200
+
+-- Create HR2 user
+CREATE USER hr2 IDENTIFIED BY hr2;
+GRANT CONNECT, RESOURCE TO hr2;
+
+exp_hr_seq_lab_normal.par
+DIRECTORY=expbup
+DUMPFILE=orcl_hr.dmp
+LOGFILE=orcl_hr.log
+METRICS=Y
+LOGTIME=ALL
+FLASHBACK_TIME=systimestamp
+SCHEMAS=HR
+
+expdp system/oracle@PDB1 PARFILE=exp_hr_seq_lab_normal.par
+
+imp_hr_to_hr2.par
+DIRECTORY=expbup
+DUMPFILE=orcl_hr.dmp
+LOGFILE=orcl_hr2.log
+METRICS=Y
+LOGTIME=ALL
+REMAP_SCHEMA=HR:HR2
+
+impdp system/oracle@PDB1 PARFILE=imp_hr_to_hr2.par
+
+SELECT sequence_name,
+         last_number,
+         cache_size
+  FROM dba_sequences
+  WHERE sequence_owner='HR2'
+ ORDER BY sequence_name;
+
+SEQUENCE_NAME        LAST_NUMBER CACHE_SIZE
+-------------------- ----------- ----------
+DEPARTMENTS_SEQ              280          0
+EMPLOYEES_SEQ                207          0
+LOCATIONS_SEQ               3300          0
+
+SQL> SELECT MAX(location_id) max_location_id
+FROM hr.locations;  2
+
+MAX_LOCATION_ID
+---------------
+           3200
+
+SQL> ed
+Wrote file afiedt.buf
+
+  1  SELECT MAX(location_id) max_location_id
+  2* FROM hr2.locations
+SQL> /
+
+MAX_LOCATION_ID
+---------------
+           3200
+
+imp_hr_to_hr2_replace.par
+DIRECTORY=expbup
+DUMPFILE=orcl_hr.dmp
+LOGFILE=orcl_hr2.log
+METRICS=Y
+LOGTIME=ALL
+REMAP_SCHEMA=HR:HR2
+TABLE_EXISTS_ACTION=REPLACE
+EXCLUDE=USER
+
+# 01-JUL-26 06:16:52.018: ORA-31684: Object type SEQUENCE:"HR2"."DEPARTMENTS_SEQ" already exists
+# 01-JUL-26 06:16:52.018: ORA-31684: Object type SEQUENCE:"HR2"."EMPLOYEES_SEQ" already exists
+# 01-JUL-26 06:16:52.018: ORA-31684: Object type SEQUENCE:"HR2"."LOCATIONS_SEQ" already exists
+
+set linesize 200
+col sequence_name format a20
+
+SQL> SELECT sequence_name,
+         last_number,
+         cache_size
+  FROM dba_sequences
+  WHERE sequence_owner='HR2'
+ ORDER BY sequence_name;  2    3    4    5    6
+
+SEQUENCE_NAME        LAST_NUMBER CACHE_SIZE
+-------------------- ----------- ----------
+DEPARTMENTS_SEQ              280          0
+EMPLOYEES_SEQ                207          0
+LOCATIONS_SEQ               3300          0
+
+BEGIN
+  FOR r IN (
+    SELECT sequence_name
+    FROM dba_sequences
+    WHERE sequence_owner = 'HR2'
+  ) LOOP
+    EXECUTE IMMEDIATE
+      'DROP SEQUENCE HR2.' || r.sequence_name;
+  END LOOP;
+END;
+/
+
+###
+SQL> BEGIN
+  FOR r IN (
+    SELECT sequence_name
+    FROM dba_sequences
+    WHERE sequence_owner = 'HR2'
+  ) LOOP
+    EXECUTE IMMEDIATE
+      'DROP SEQUENCE HR2.' || r.sequence_name;
+  END LOOP;
+END;
+/  2    3    4    5    6    7    8    9   10   11
+
+PL/SQL procedure successfully completed.
+
+SQL> SELECT sequence_name,
+         last_number,
+         cache_size
+  FROM dba_sequences
+  WHERE sequence_owner='HR2'
+ ORDER BY sequence_name 
+   ;
+
+no rows selected
+###
+
+# 01-JUL-26 06:32:07.592: W-1      Completed 3 SEQUENCE objects in 0 seconds
+
+SEQUENCE_NAME        LAST_NUMBER CACHE_SIZE
+-------------------- ----------- ----------
+DEPARTMENTS_SEQ              280          0
+EMPLOYEES_SEQ                207          0
+LOCATIONS_SEQ               3300          0
