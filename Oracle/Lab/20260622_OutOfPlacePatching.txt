@@ -1,0 +1,1110 @@
+Out-of-Place patching
+https://docs.oracle.com/cd/E91266_01/OPTCH/GUID-10EF5AF2-BB81-488B-8F5A-362C04E4E6BE.htm#OPTCH675
+
+# tämän hetkinen patch taso
+
+SQL> r
+  1  SELECT patch_id,
+  2         patch_type,
+  3         action,
+  4         status,
+  5         description,
+  6         action_time
+  7  FROM   dba_registry_sqlpatch
+  8  --WHERE  patch_id = 38725048
+  9* ORDER BY action_time DESC
+
+  PATCH_ID PATCH_TYPE ACTION          STATUS
+---------- ---------- --------------- -------------------------
+DESCRIPTION
+--------------------------------------------------------------------------------
+ACTION_TIME
+---------------------------------------------------------------------------
+  38291812 RU         APPLY           SUCCESS
+Database Release Update : 19.29.0.0.251021 (38291812)
+06-NOV-25 07.52.18.489466 AM
+
+  37960098 RU         APPLY           SUCCESS
+Database Release Update : 19.28.0.0.250715 (37960098)
+07-OCT-25 08.02.38.720921 AM
+
+  PATCH_ID PATCH_TYPE ACTION          STATUS
+---------- ---------- --------------- -------------------------
+DESCRIPTION
+--------------------------------------------------------------------------------
+ACTION_TIME
+---------------------------------------------------------------------------
+
+  29517242 RU         APPLY           SUCCESS
+Database Release Update : 19.3.0.0.190416 (29517242)
+06-OCT-25 03.49.15.944444 AM
+
+# backup tietokannasta
+
+rman target / cmdfile=/home/oracle/rman_backup_full_plus_archivelog.sql log=/tmp/rman_backup.log
+[oracle@oraclevm backup]$ tar -czvf ORCLDB_backup_20260623.tar.gz *.bkp
+
+# venytetään levyä
+
+C:\Users\vdiuser\VirtualBox VMs\Oracle VM Server [master +0 ~1 -0 | +4 ~0 -24 !]> C:\"Program Files"\Oracle\VirtualBox\VBoxManage.exe modifyhd "Oracle VM Server.vdi" --resize 102400
+0%...10%...20%...30%...40%...50%...60%...70%...80%...90%...100%
+
+GNOME Partition editor ISO VM:lle ja boot, resize https://www.howtogeek.com/124622/how-to-enlarge-a-virtual-machines-disk-in-virtualbox-or-vmware/
+
+[root@oraclevm ~]# df -h
+Filesystem                    Size  Used Avail Use% Mounted on
+devtmpfs                      1.8G     0  1.8G   0% /dev
+tmpfs                         1.8G  1.2G  598M  68% /dev/shm
+tmpfs                         1.8G  8.5M  1.8G   1% /run
+tmpfs                         1.8G     0  1.8G   0% /sys/fs/cgroup
+/dev/mapper/ol_oraclevm-root   44G   36G  8.3G  82% /
+/dev/sda1                    1014M  559M  456M  56% /boot
+tmpfs                         363M     0  363M   0% /run/user/0
+[root@oraclevm ~]# lsblk
+NAME                 MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                    8:0    0  100G  0 disk
+├─sda1                 8:1    0    1G  0 part /boot
+└─sda2                 8:2    0   99G  0 part
+  ├─ol_oraclevm-root 252:0    0   44G  0 lvm  /
+  └─ol_oraclevm-swap 252:1    0    5G  0 lvm  [SWAP]
+sr0                   11:0    1 1024M  0 rom
+[root@oraclevm ~]# pvresize /dev/sda2
+  Physical volume "/dev/sda2" changed
+  1 physical volume(s) resized or updated / 0 physical volume(s) not resized
+[root@oraclevm ~]# lvextend -l +100%FREE /dev/mapper/ol_oraclevm-root
+  Size of logical volume ol_oraclevm/root changed from <44.00 GiB (11263 extents) to <94.00 GiB (24063 extents).
+  Logical volume ol_oraclevm/root successfully resized.
+[root@oraclevm ~]# xfs_growfs /
+meta-data=/dev/mapper/ol_oraclevm-root isize=512    agcount=4, agsize=2883328 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=1, sparse=1, rmapbt=0
+         =                       reflink=1    bigtime=0 inobtcount=0
+data     =                       bsize=4096   blocks=11533312, imaxpct=25
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
+log      =internal log           bsize=4096   blocks=5631, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+data blocks changed from 11533312 to 24640512
+[root@oraclevm ~]# df -h .
+Filesystem                    Size  Used Avail Use% Mounted on
+/dev/mapper/ol_oraclevm-root   94G   37G   58G  39% /
+
+C:\Temp\jan2026_linux_x86-64> scp . *.zip root@127.0.1.1:/home/oracle
+
+oracle      2498    2459  0 07:49 pts/0    00:00:00 grep --color=auto smon
+[oracle@oraclevm ~]$ $ORACLE_HOME/OPatch/opatch version
+OPatch Version: 12.2.0.1.48
+
+OPatch succeeded.
+
+[oracle@oraclevm 38725048]$ pwd
+/home/oracle/38725048
+[oracle@oraclevm 38725048]$ export PATH=/u01/app/oracle/product/19.0.0/db_1/OPatch:$PATH
+[oracle@oraclevm 38725048]$ export PATCH_HOME=/home/oracle/38725048
+
+
+[oracle@oraclevm OPatch]$ opatchauto apply $PATCH_HOME -prepare-clone
+
+opatchauto must run from Grid Home with current arguments. Please retry it inside Grid Home
+opatchauto returns with error code = 2
+
+No GI -> manual out-of-place patching for single instance
+
+# create new ORACLE_HOME
+mkdir -p /u01/app/oracle/product/19.30.0/db_1
+mkdir -p /u01/app/oracle/product/19.30.0/db_1/mydbfiles
+mkdir -p /u01/app/oracle/product/19.30.0/db_1/myreco
+chown -R oracle:oinstall /u01/app/oracle/product/19.30.0
+chmod -R 775 /u01/app/oracle/product/19.30.0
+
+# response file
+/u01/app/oracle/product/19.0.0/db_1/install/response/db_install_new_home.rsp
+oracle.install.option=INSTALL_DB_SWONLY
+ORACLE_HOME=/u01/app/oracle/product/19.0.0/db_1
+oracle.install.db.config.starterdb.fileSystemStorage.dataLocation=/u01/app/oracle/product/19.30.0/db_1/mydbfiles
+oracle.install.db.config.starterdb.fileSystemStorage.recoveryLocation=/u01/app/oracle/product/19.30.0/db_1/myreco
+
+[oracle@oraclevm response]$ cat db_install_new_home.rsp
+####################################################################
+## Copyright(c) Oracle Corporation 1998,2019. All rights reserved.##
+##                                                                ##
+## Specify values for the variables listed below to customize     ##
+## your installation.                                             ##
+##                                                                ##
+## Each variable is associated with a comment. The comment        ##
+## can help to populate the variables with the appropriate        ##
+## values.                                                        ##
+##                                                                ##
+## IMPORTANT NOTE: This file contains plain text passwords and    ##
+## should be secured to have read permission only by oracle user  ##
+## or db administrator who owns this installation.                ##
+##                                                                ##
+####################################################################
+
+
+#------------------------------------------------------------------------------
+# Do not change the following system generated value.
+#------------------------------------------------------------------------------
+oracle.install.responseFileVersion=/oracle/install/rspfmt_dbinstall_response_schema_v19.0.0
+
+#-------------------------------------------------------------------------------
+# Specify the installation option.
+# It can be one of the following:
+#   - INSTALL_DB_SWONLY
+#   - INSTALL_DB_AND_CONFIG
+#-------------------------------------------------------------------------------
+#oracle.install.option=INSTALL_DB_AND_CONFIG
+oracle.install.option=INSTALL_DB_SWONLY
+#-------------------------------------------------------------------------------
+# Specify the Unix group to be set for the inventory directory.
+#-------------------------------------------------------------------------------
+UNIX_GROUP_NAME=oinstall
+
+#-------------------------------------------------------------------------------
+# Specify the location which holds the inventory files.
+# This is an optional parameter if installing on
+# Windows based Operating System.
+#-------------------------------------------------------------------------------
+INVENTORY_LOCATION=/u01/app/oraInventory
+#-------------------------------------------------------------------------------
+# Specify the complete path of the Oracle Home.
+#-------------------------------------------------------------------------------
+#ORACLE_HOME=/u01/app/oracle/product/19.0.0/db_1
+ORACLE_HOME=/u01/app/oracle/product/19.30.0/db_1
+#-------------------------------------------------------------------------------
+# Specify the complete path of the Oracle Base.
+#-------------------------------------------------------------------------------
+ORACLE_BASE=/u01/app/oracle
+
+#-------------------------------------------------------------------------------
+# Specify the installation edition of the component.
+#
+# The value should contain only one of these choices.
+#   - EE     : Enterprise Edition
+#   - SE2     : Standard Edition 2
+
+
+#-------------------------------------------------------------------------------
+
+oracle.install.db.InstallEdition=EE
+###############################################################################
+#                                                                             #
+# PRIVILEGED OPERATING SYSTEM GROUPS                                          #
+# ------------------------------------------                                  #
+# Provide values for the OS groups to which SYSDBA and SYSOPER privileges     #
+# needs to be granted. If the install is being performed as a member of the   #
+# group "dba", then that will be used unless specified otherwise below.       #
+#                                                                             #
+# The value to be specified for OSDBA and OSOPER group is only for UNIX based #
+# Operating System.                                                           #
+#                                                                             #
+###############################################################################
+
+#------------------------------------------------------------------------------
+# The OSDBA_GROUP is the OS group which is to be granted SYSDBA privileges.
+#-------------------------------------------------------------------------------
+oracle.install.db.OSDBA_GROUP=oinstall
+
+#------------------------------------------------------------------------------
+# The OSOPER_GROUP is the OS group which is to be granted SYSOPER privileges.
+# The value to be specified for OSOPER group is optional.
+#------------------------------------------------------------------------------
+oracle.install.db.OSOPER_GROUP=oinstall
+
+#------------------------------------------------------------------------------
+# The OSBACKUPDBA_GROUP is the OS group which is to be granted SYSBACKUP privileges.
+#------------------------------------------------------------------------------
+oracle.install.db.OSBACKUPDBA_GROUP=oinstall
+
+#------------------------------------------------------------------------------
+# The OSDGDBA_GROUP is the OS group which is to be granted SYSDG privileges.
+#------------------------------------------------------------------------------
+oracle.install.db.OSDGDBA_GROUP=oinstall
+
+#------------------------------------------------------------------------------
+# The OSKMDBA_GROUP is the OS group which is to be granted SYSKM privileges.
+#------------------------------------------------------------------------------
+oracle.install.db.OSKMDBA_GROUP=oinstall
+
+#------------------------------------------------------------------------------
+# The OSRACDBA_GROUP is the OS group which is to be granted SYSRAC privileges.
+#------------------------------------------------------------------------------
+oracle.install.db.OSRACDBA_GROUP=oinstall
+################################################################################
+#                                                                              #
+#                      Root script execution configuration                     #
+#                                                                              #
+################################################################################
+
+#-------------------------------------------------------------------------------------------------------
+# Specify the root script execution mode.
+#
+#   - true  : To execute the root script automatically by using the appropriate configuration methods.
+#   - false : To execute the root script manually.
+#
+# If this option is selected, password should be specified on the console.
+#-------------------------------------------------------------------------------------------------------
+oracle.install.db.rootconfig.executeRootScript=false
+
+#--------------------------------------------------------------------------------------
+# Specify the configuration method to be used for automatic root script execution.
+#
+# Following are the possible choices:
+#   - ROOT
+#   - SUDO
+#--------------------------------------------------------------------------------------
+oracle.install.db.rootconfig.configMethod=
+#--------------------------------------------------------------------------------------
+# Specify the absolute path of the sudo program.
+#
+# Applicable only when SUDO configuration method was chosen.
+#--------------------------------------------------------------------------------------
+oracle.install.db.rootconfig.sudoPath=
+
+#--------------------------------------------------------------------------------------
+# Specify the name of the user who is in the sudoers list.
+# Applicable only when SUDO configuration method was chosen.
+# Note:For Single Instance database installations,the sudo user name must be the username of the user installing the database.
+#--------------------------------------------------------------------------------------
+oracle.install.db.rootconfig.sudoUserName=
+
+###############################################################################
+#                                                                             #
+#                               Grid Options                                  #
+#                                                                             #
+###############################################################################
+
+#------------------------------------------------------------------------------
+# Value is required only if the specified install option is INSTALL_DB_SWONLY
+#
+# Specify the cluster node names selected during the installation.
+#
+# Example : oracle.install.db.CLUSTER_NODES=node1,node2
+#------------------------------------------------------------------------------
+oracle.install.db.CLUSTER_NODES=
+
+###############################################################################
+#                                                                             #
+#                        Database Configuration Options                       #
+#                                                                             #
+###############################################################################
+
+#-------------------------------------------------------------------------------
+# Specify the type of database to create.
+# It can be one of the following:
+#   - GENERAL_PURPOSE
+#   - DATA_WAREHOUSE
+# GENERAL_PURPOSE: A starter database designed for general purpose use or transaction-heavy applications.
+# DATA_WAREHOUSE : A starter database optimized for data warehousing applications.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.type=GENERAL_PURPOSE
+
+#-------------------------------------------------------------------------------
+# Specify the Starter Database Global Database Name.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.globalDBName=orcldb
+
+#-------------------------------------------------------------------------------
+# Specify the Starter Database SID.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.SID=orcl
+
+#-------------------------------------------------------------------------------
+# Specify whether the database should be configured as a Container database.
+# The value can be either "true" or "false". If left blank it will be assumed
+# to be "false".
+#-------------------------------------------------------------------------------
+#oracle.install.db.ConfigureAsContainerDB=true
+
+#-------------------------------------------------------------------------------
+# Specify the  Pluggable Database name for the pluggable database in Container Database.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.PDBName=pdb1
+
+#-------------------------------------------------------------------------------
+# Specify the Starter Database character set.
+#
+#  One of the following
+#  AL32UTF8, WE8ISO8859P15, WE8MSWIN1252, EE8ISO8859P2,
+#  EE8MSWIN1250, NE8ISO8859P10, NEE8ISO8859P4, BLT8MSWIN1257,
+#  BLT8ISO8859P13, CL8ISO8859P5, CL8MSWIN1251, AR8ISO8859P6,
+#  AR8MSWIN1256, EL8ISO8859P7, EL8MSWIN1253, IW8ISO8859P8,
+#  IW8MSWIN1255, JA16EUC, JA16EUCTILDE, JA16SJIS, JA16SJISTILDE,
+#  KO16MSWIN949, ZHS16GBK, TH8TISASCII, ZHT32EUC, ZHT16MSWIN950,
+#  ZHT16HKSCS, WE8ISO8859P9, TR8MSWIN1254, VN8MSWIN1258
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.characterSet=AL32UTF8
+
+#------------------------------------------------------------------------------
+# This variable should be set to true if Automatic Memory Management
+# in Database is desired.
+# If Automatic Memory Management is not desired, and memory allocation
+# is to be done manually, then set it to false.
+#------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.memoryOption=true
+
+#-------------------------------------------------------------------------------
+# Specify the total memory allocation for the database. Value(in MB) should be
+# at least 256 MB, and should not exceed the total physical memory available
+# on the system.
+# Example: oracle.install.db.config.starterdb.memoryLimit=512
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.memoryLimit=1024
+
+#-------------------------------------------------------------------------------
+# This variable controls whether to load Example Schemas onto
+# the starter database or not.
+# The value can be either "true" or "false". If left blank it will be assumed
+# to be "false".
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.installExampleSchemas=true
+
+###############################################################################
+#                                                                             #
+# Passwords can be supplied for the following four schemas in the             #
+# starter database:                                                           #
+#   SYS                                                                       #
+#   SYSTEM                                                                    #
+#   DBSNMP (used by Enterprise Manager)                                       #
+#                                                                             #
+# Same password can be used for all accounts (not recommended)                #
+# or different passwords for each account can be provided (recommended)       #
+#                                                                             #
+###############################################################################
+
+#------------------------------------------------------------------------------
+# This variable holds the password that is to be used for all schemas in the
+# starter database.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.password.ALL=OrAclE_2021
+
+#-------------------------------------------------------------------------------
+# Specify the SYS password for the starter database.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.password.SYS=OrAclE_2021
+
+#-------------------------------------------------------------------------------
+# Specify the SYSTEM password for the starter database.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.password.SYSTEM=OrAclE_2021
+
+#-------------------------------------------------------------------------------
+# Specify the DBSNMP password for the starter database.
+# Applicable only when oracle.install.db.config.starterdb.managementOption=CLOUD_CONTROL
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.password.DBSNMP=OrAclE_2021
+
+#-------------------------------------------------------------------------------
+# Specify the PDBADMIN password required for creation of Pluggable Database in the Container Database.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.password.PDBADMIN=OrAclE_2021
+
+#-------------------------------------------------------------------------------
+# Specify the management option to use for managing the database.
+# Options are:
+# 1. CLOUD_CONTROL - If you want to manage your database with Enterprise Manager Cloud Control along with Database Express.
+# 2. DEFAULT   -If you want to manage your database using the default Database Express option.
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.managementOption=DEFAULT
+
+#-------------------------------------------------------------------------------
+# Specify the OMS host to connect to Cloud Control.
+# Applicable only when oracle.install.db.config.starterdb.managementOption=CLOUD_CONTROL
+#-------------------------------------------------------------------------------
+oracle.install.db.config.starterdb.omsHost=
+
+#-------------------------------------------------------------------------------
+# Specify the OMS port to connect to Cloud Control.
+# Applicable only when oracle.install.db.config.starterdb.managementOption=CLOUD_CONTROL
+#-------------------------------------------------------------------------------
+oracle.install.db.config.starterdb.omsPort=
+
+#-------------------------------------------------------------------------------
+# Specify the EM Admin user name to use to connect to Cloud Control.
+# Applicable only when oracle.install.db.config.starterdb.managementOption=CLOUD_CONTROL
+#-------------------------------------------------------------------------------
+oracle.install.db.config.starterdb.emAdminUser=
+
+#-------------------------------------------------------------------------------
+# Specify the EM Admin password to use to connect to Cloud Control.
+# Applicable only when oracle.install.db.config.starterdb.managementOption=CLOUD_CONTROL
+#-------------------------------------------------------------------------------
+oracle.install.db.config.starterdb.emAdminPassword=
+
+###############################################################################
+#                                                                             #
+# SPECIFY RECOVERY OPTIONS                                                    #
+# ------------------------------------                                        #
+# Recovery options for the database can be mentioned using the entries below  #
+#                                                                             #
+###############################################################################
+
+#------------------------------------------------------------------------------
+# This variable is to be set to false if database recovery is not required. Else
+# this can be set to true.
+#-------------------------------------------------------------------------------
+oracle.install.db.config.starterdb.enableRecovery=true
+
+#-------------------------------------------------------------------------------
+# Specify the type of storage to use for the database.
+# It can be one of the following:
+#   - FILE_SYSTEM_STORAGE
+#   - ASM_STORAGE
+#-------------------------------------------------------------------------------
+oracle.install.db.config.starterdb.storageType=FILE_SYSTEM_STORAGE
+
+#-------------------------------------------------------------------------------
+# Specify the database file location which is a directory for datafiles, control
+# files, redo logs.
+#
+# Applicable only when oracle.install.db.config.starterdb.storage=FILE_SYSTEM_STORAGE
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.fileSystemStorage.dataLocation=/u01/app/oracle/product/19.0.0/db_1/mydbfiles
+oracle.install.db.config.starterdb.fileSystemStorage.dataLocation=/u01/app/oracle/product/19.30.0/db_1/mydbfiles
+#-------------------------------------------------------------------------------
+# Specify the recovery location.
+#
+# Applicable only when oracle.install.db.config.starterdb.storage=FILE_SYSTEM_STORAGE
+#-------------------------------------------------------------------------------
+#oracle.install.db.config.starterdb.fileSystemStorage.recoveryLocation=/u01/app/oracle/product/19.0.0/db_1/myreco
+oracle.install.db.config.starterdb.fileSystemStorage.recoveryLocation=/u01/app/oracle/product/19.30.0/db_1/myreco
+
+#-------------------------------------------------------------------------------
+# Specify the existing ASM disk groups to be used for storage.
+#
+# Applicable only when oracle.install.db.config.starterdb.storageType=ASM_STORAGE
+#-------------------------------------------------------------------------------
+oracle.install.db.config.asm.diskGroup=
+
+#-------------------------------------------------------------------------------
+# Specify the password for ASMSNMP user of the ASM instance.
+#
+# Applicable only when oracle.install.db.config.starterdb.storage=ASM_STORAGE
+#-------------------------------------------------------------------------------
+oracle.install.db.config.asm.ASMSNMPPassword=
+
+# Oracle Media tarvitaan
+V982063-01.zip, pura uuteen ORACLE_HOME:en !
+
+[oracle@oraclevm ~]$ export ORACLE_HOME=/u01/app/oracle/product/19.30.0/db_1
+
+./runInstaller -silent -responseFile /u01/app/oracle/product/19.0.0/db_1/install/response/db_install_new_home.rsp
+ 
+ [oracle@oraclevm media]$ ./runInstaller -silent -responseFile /u01/app/oracle/product/19.0.0/db_1/install/response/db_install_new_home.rsp
+Launching Oracle Database Setup Wizard...
+
+[WARNING] [INS-08101] Unexpected error while executing the action at state: 'supportedOSCheck'
+   CAUSE: No additional information available.
+   ACTION: Contact Oracle Support Services or refer to the software manual.
+   SUMMARY:
+       - java.lang.NullPointerException
+ 
+ export CV_ASSUME_DISTID=OEL7.8
+ 
+[oracle@oraclevm db_1]$ ./runInstaller -silent -responseFile /u01/app/oracle/product/19.0.0/db_1/install/response/db_install_new_home.rsp
+Launching Oracle Database Setup Wizard...
+
+The response file for this session can be found at:
+ /u01/app/oracle/product/19.30.0/db_1/install/response/db_2026-06-29_06-15-26AM.rsp
+
+You can find the log of this install session at:
+ /u01/app/oraInventory/logs/InstallActions2026-06-29_06-15-26AM/installActions2026-06-29_06-15-26AM.log
+
+As a root user, execute the following script(s):
+        1. /u01/app/oracle/product/19.30.0/db_1/root.sh
+
+Execute /u01/app/oracle/product/19.30.0/db_1/root.sh on the following nodes:
+[oraclevm]
+
+
+Successfully Setup Software.
+ 
+[root@oraclevm db_1]# /u01/app/oracle/product/19.30.0/db_1/root.sh
+Check /u01/app/oracle/product/19.30.0/db_1/install/root_oraclevm_2026-06-29_06-29-51-395224367.log for the output of root script
+
+# OPatch päivitys 12.2.0.1.49 or later
+
+[oracle@oraclevm 39034528]$ opatch version
+OPatch Version: 12.2.0.1.48
+
+[oracle@oraclevm OPatch]$ cd
+[oracle@oraclevm ~]$ cd 39034528/
+[oracle@oraclevm 39034528]$ ls
+custom  etc  files  README.html  README.txt
+[oracle@oraclevm 39034528]$ opatch apply
+Patch 39034528 successfully applied.
+
+[oracle@oraclevm 39034528]$ $ORACLE_HOME/OPatch/opatch lsinventory | grep 39034528
+Patch  39034528     : applied on Tue Jun 30 01:28:38 EDT 2026
+Patch description:  "Database Release Update : 19.31.0.0.260421 (REL-APR2026) (39034528)"
+
+# kanta alas vanhasta ORACLE_HOMEsta
+
+[oracle@oraclevm 39034528]$ . oraenv
+ORACLE_SID = [orcl] ?
+The Oracle base remains unchanged with value /u01/app/oracle
+[oracle@oraclevm 39034528]$ env | grep ORACLE
+ORACLE_SID=orcl
+ORACLE_BASE=/u01/app/oracle
+ORACLE_HOME=/u01/app/oracle/product/19.0.0/db_1
+[oracle@oraclevm 39034528]$ sqlplus / as sysdba
+
+SQL*Plus: Release 19.0.0.0.0 - Production on Tue Jun 30 02:05:48 2026
+Version 19.29.0.0.0
+
+Copyright (c) 1982, 2025, Oracle.  All rights reserved.
+
+
+Connected to:
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.29.0.0.0
+
+SQL> shutdown immediate;
+
+[oracle@oraclevm 39034528]$ export ORACLE_HOME=/u01/app/oracle/product/19.30.0/db_1
+[oracle@oraclevm 39034528]$ export PATH=$ORACLE_HOME/bin:$PATH
+[oracle@oraclevm 39034528]$ which sqlplus
+/u01/app/oracle/product/19.30.0/db_1/bin/sqlplus
+
+# spfile ym. uuteen
+
+[oracle@oraclevm 39034528]$ cp /u01/app/oracle/product/19.0.0/db_1/dbs/*.ora /u01/app/oracle/product/19.30.0/db_1/dbs/
+[oracle@oraclevm 39034528]$ $ORACLE_HOME/OPatch/datapatch -verbose
+SQL Patching tool version 19.31.0.0.0 Production on Tue Jun 30 02:16:11 2026
+Copyright (c) 2012, 2026, Oracle.  All rights reserved.
+
+Log file for this invocation: /u01/app/oracle/cfgtoollogs/sqlpatch/sqlpatch_56109_2026_06_30_02_16_12/sqlpatch_invocation.log
+
+Connecting to database...OK
+Gathering database info...done
+
+Note:  Datapatch will only apply or rollback SQL fixes for PDBs
+       that are in an open state, no patches will be applied to closed PDBs.
+       Please refer to Note: Datapatch: Database 12c Post Patch SQL Automation
+       (Doc ID 1585822.1)
+
+Patch 39034528 apply (pdb CDB$ROOT): SUCCESS
+  logfile: /u01/app/oracle/cfgtoollogs/sqlpatch/39034528/28740323/39034528_apply_ORCLDB_CDBROOT_2026Jun30_02_30_51.log (no errors)
+Patch 39034528 apply (pdb PDB$SEED): SUCCESS
+  logfile: /u01/app/oracle/cfgtoollogs/sqlpatch/39034528/28740323/39034528_apply_ORCLDB_PDBSEED_2026Jun30_02_37_49.log (no errors)
+Patch 39034528 apply (pdb PDB1): SUCCESS
+  logfile: /u01/app/oracle/cfgtoollogs/sqlpatch/39034528/28740323/39034528_apply_ORCLDB_PDB1_2026Jun30_02_37_50.log (no errors)
+SQL Patching tool complete on Tue Jun 30 02:48:06 2026
+
+SELECT patch_id,
+--version,
+status,
+action,
+action_time
+FROM dba_registry_sqlpatch
+ORDER BY action_time DESC;
+
+  PATCH_ID STATUS                    ACTION
+---------- ------------------------- ---------------
+ACTION_TIME
+---------------------------------------------------------------------------
+  39034528 SUCCESS                   APPLY
+30-JUN-26 02.36.06.320538 AM
+
+  38291812 SUCCESS                   APPLY
+06-NOV-25 07.52.18.489466 AM
+
+  37960098 SUCCESS                   APPLY
+07-OCT-25 08.02.38.720921 AM
+
+
+  PATCH_ID STATUS                    ACTION
+---------- ------------------------- ---------------
+ACTION_TIME
+---------------------------------------------------------------------------
+  29517242 SUCCESS                   APPLY
+06-OCT-25 03.49.15.944444 AM
+
+# move datafiles
+
+[oracle@oraclevm ~]$ mkdir -p /u01/oradata/ORCLDB
+[oracle@oraclevm ~]$ mkdir -p /u01/fra/ORCLDB
+[oracle@oraclevm ~]$
+[oracle@oraclevm ~]$ chown -R oracle:oinstall /u01/oradata
+[oracle@oraclevm ~]$ chown -R oracle:oinstall /u01/fra
+
+SQL> SET LINES 200
+
+SELECT 'ALTER DATABASE MOVE DATAFILE '''||name||
+       ''' TO '''||
+       REPLACE(name,
+               '/u01/app/oracle/product/19.0.0/db_1/mydbfiles',
+               '/u01/oradata')||''';'
+FROM v$datafile;SQL> SQL>   2    3    4    5    6
+
+'ALTERDATABASEMOVEDATAFILE'''||NAME||'''TO'''||REPLACE(NAME,'/U01/APP/ORACLE/PRODUCT/19.0.0/DB_1/MYDBFILES','/U01/ORADATA')||''';'
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/system01.dbf' TO '/u01/oradata/ORCLDB/system01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/sysaux01.dbf' TO '/u01/oradata/ORCLDB/sysaux01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/undotbs01.dbf' TO '/u01/oradata/ORCLDB/undotbs01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/system01.dbf' TO '/u01/oradata/ORCLDB/pdbseed/system01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/sysaux01.dbf' TO '/u01/oradata/ORCLDB/pdbseed/sysaux01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/users01.dbf' TO '/u01/oradata/ORCLDB/users01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/undotbs01.dbf' TO '/u01/oradata/ORCLDB/pdbseed/undotbs01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/system01.dbf' TO '/u01/oradata/ORCLDB/pdb1/system01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/sysaux01.dbf' TO '/u01/oradata/ORCLDB/pdb1/sysaux01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/undotbs01.dbf' TO '/u01/oradata/ORCLDB/pdb1/undotbs01.dbf';
+ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/users01.dbf' TO '/u01/oradata/ORCLDB/pdb1/users01.dbf';
+
+Database altered.
+
+SQL>
+
+Database altered.
+
+SQL>
+
+Database altered.
+
+SQL> ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/system01.dbf' TO '/u01/oradata/ORCLDB/pdbseed/system01.dbf'
+*
+ERROR at line 1:
+ORA-01516: nonexistent log file, data file, or temporary file "5" in the current container
+
+
+SQL> ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/sysaux01.dbf' TO '/u01/oradata/ORCLDB/pdbseed/sysaux01.dbf'
+*
+ERROR at line 1:
+ORA-01516: nonexistent log file, data file, or temporary file "6" in the current container
+
+
+SQL>
+Database altered.
+
+SQL> ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/undotbs01.dbf' TO '/u01/oradata/ORCLDB/pdbseed/undotbs01.dbf'
+*
+ERROR at line 1:
+ORA-01516: nonexistent log file, data file, or temporary file "8" in the current container
+
+
+SQL> ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/system01.dbf' TO '/u01/oradata/ORCLDB/pdb1/system01.dbf'
+*
+ERROR at line 1:
+ORA-01516: nonexistent log file, data file, or temporary file "9" in the current container
+
+
+SQL> ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/sysaux01.dbf' TO '/u01/oradata/ORCLDB/pdb1/sysaux01.dbf'
+*
+ERROR at line 1:
+ORA-01516: nonexistent log file, data file, or temporary file "10" in the current container
+
+
+SQL> ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/undotbs01.dbf' TO '/u01/oradata/ORCLDB/pdb1/undotbs01.dbf'
+*
+ERROR at line 1:
+ORA-01516: nonexistent log file, data file, or temporary file "11" in the current container
+
+
+SQL> ALTER DATABASE MOVE DATAFILE '/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/users01.dbf' TO '/u01/oradata/ORCLDB/pdb1/users01.dbf'
+*
+ERROR at line 1:
+ORA-01516: nonexistent log file, data file, or temporary file "12" in the current container
+
+  1  SELECT file#, name
+  2  FROM v$datafile
+  3* ORDER BY file#
+
+     FILE# NAME
+---------- ------------------------------------------------------------------------------------------
+         1 /u01/oradata/ORCLDB/system01.dbf
+         3 /u01/oradata/ORCLDB/sysaux01.dbf
+         4 /u01/oradata/ORCLDB/undotbs01.dbf
+         5 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/system01.dbf
+         6 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/sysaux01.dbf
+         7 /u01/oradata/ORCLDB/users01.dbf
+         8 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/undotbs01.dbf
+         9 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/system01.dbf
+        10 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/sysaux01.dbf
+        11 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/undotbs01.dbf
+        12 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/users01.dbf
+
+mkdir -p /u01/oradata/ORCLDB/pdbseed
+mkdir -p /u01/oradata/ORCLDB/pdb1
+
+chown -R oracle:oinstall /u01/oradata
+chmod -R 775 /u01/oradata
+
+# SEED files
+ALTER PLUGGABLE DATABASE PDB$SEED CLOSE IMMEDIATE;
+ALTER PLUGGABLE DATABASE PDB$SEED OPEN READ WRITE;
+ALTER SESSION SET CONTAINER=PDB$SEED;
+
+SQL> ALTER DATABASE MOVE DATAFILE 5
+  TO '/u01/oradata/ORCLDB/pdbseed/system01.dbf';
+
+ALTER DATABASE MOVE DATAFILE 6
+  TO '/u01/oradata/ORCLDB/pdbseed/sysaux01.dbf';
+
+ALTER DATABASE MOVE DATAFILE 8
+  TO '/u01/oradata/ORCLDB/pdbseed/undotbs01.dbf';  2
+
+Database altered.
+
+SQL> SQL>   2
+
+Database altered.
+
+SQL> SQL>   2
+Database altered.
+
+
+
+SQL> ALTER SESSION SET CONTAINER=PDB1;
+
+Session altered.
+
+ALTER DATABASE MOVE DATAFILE 9  TO '/u01/oradata/ORCLDB/pdb1/system01.dbf';
+
+ALTER DATABASE MOVE DATAFILE 10  TO '/u01/oradata/ORCLDB/pdb1/sysaux01.dbf';
+
+ALTER DATABASE MOVE DATAFILE 11  TO '/u01/oradata/ORCLDB/pdb1/undotbs01.dbf';
+
+ALTER DATABASE MOVE DATAFILE 12  TO '/u01/oradata/ORCLDB/pdb1/users01.dbf';
+
+SELECT file#, name FROM v$datafile ORDER BY file#;
+
+SQL> col name format a90
+SQL> r
+  1  SELECT con_id, file#, name
+  2  FROM v$datafile
+  3* ORDER BY con_id, file#
+
+    CON_ID      FILE# NAME
+---------- ---------- ------------------------------------------------------------------------------------------
+         1          1 /u01/oradata/ORCLDB/system01.dbf
+         1          3 /u01/oradata/ORCLDB/sysaux01.dbf
+         1          4 /u01/oradata/ORCLDB/undotbs01.dbf
+         1          7 /u01/oradata/ORCLDB/users01.dbf
+         2          5 /u01/oradata/ORCLDB/pdbseed/system01.dbf
+         2          6 /u01/oradata/ORCLDB/pdbseed/sysaux01.dbf
+         2          8 /u01/oradata/ORCLDB/pdbseed/undotbs01.dbf
+         3          9 /u01/oradata/ORCLDB/pdb1/system01.dbf
+         3         10 /u01/oradata/ORCLDB/pdb1/sysaux01.dbf
+         3         11 /u01/oradata/ORCLDB/pdb1/undotbs01.dbf
+         3         12 /u01/oradata/ORCLDB/pdb1/users01.dbf
+
+SQL> SELECT con_id, name
+FROM v$tempfile
+ORDER BY con_id;
+  2    3
+    CON_ID NAME
+---------- ------------------------------------------------------------------------------------------
+         1 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/temp01.dbf
+         2 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/temp012025-10-06_03-50-53-151
+           -AM.dbf
+
+         3 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/temp01.dbf
+
+col name format a100
+
+
+
+SELECT con_id,
+       file#,
+       ROUND(bytes/1024/1024) AS mb,
+       name
+FROM v$tempfile
+ORDER BY con_id;
+SQL> SQL>   2    3    4    5    6
+    CON_ID      FILE#         MB NAME
+---------- ---------- ---------- ----------------------------------------------------------------------------------------------------
+         1          1        239 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/temp01.dbf
+         2          2        239 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/temp012025-10-06_03-50-53-151-AM.dbf
+         3          3        239 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/temp01.dbf
+
+ALTER SESSION SET CONTAINER=CDB$ROOT;
+
+ALTER TABLESPACE TEMP
+ADD TEMPFILE '/u01/oradata/ORCLDB/temp01.dbf'
+SIZE 239M
+AUTOEXTEND ON;
+
+ALTER SESSION SET CONTAINER=PDB$SEED;
+
+ALTER TABLESPACE TEMP
+ADD TEMPFILE '/u01/oradata/ORCLDB/pdbseed/temp01.dbf'
+SIZE 239M
+AUTOEXTEND ON;
+
+ALTER SESSION SET CONTAINER=PDB1;
+
+ALTER TABLESPACE TEMP
+ADD TEMPFILE '/u01/oradata/ORCLDB/pdb1/temp01.dbf'
+SIZE 239M
+AUTOEXTEND ON;
+
+ALTER SESSION SET CONTAINER=CDB$ROOT;
+
+ALTER DATABASE TEMPFILE
+'/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/temp01.dbf'
+DROP INCLUDING DATAFILES;
+
+ALTER SESSION SET CONTAINER=PDB$SEED;
+
+ALTER DATABASE TEMPFILE
+'/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdbseed/temp012025-10-06_03-50-53-151-AM.dbf'
+DROP INCLUDING DATAFILES;
+
+ALTER SESSION SET CONTAINER=PDB1;
+
+ALTER DATABASE TEMPFILE
+'/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/pdb1/temp01.dbf'
+DROP INCLUDING DATAFILES;
+
+
+SQL> SELECT group#,
+       l.bytes/1024/1024 mb,
+       lf.member
+FROM v$log l
+JOIN v$logfile lf USING (group#)
+ORDER BY group#;  2    3    4    5    6
+
+    GROUP#         MB MEMBER
+---------- ---------- ----------------------------------------------------------------------------------------------------
+         1        200 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/redo01.log
+         2        200 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/redo02.log
+         3        200 /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/redo03.log
+
+ALTER DATABASE ADD LOGFILE GROUP 4
+('/u01/oradata/ORCLDB/redo04.log') SIZE 200M;
+
+ALTER DATABASE ADD LOGFILE GROUP 5
+('/u01/oradata/ORCLDB/redo05.log') SIZE 200M;
+
+ALTER DATABASE ADD LOGFILE GROUP 6
+('/u01/oradata/ORCLDB/redo06.log') SIZE 200M;
+
+
+SQL> ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM CHECKPOINT;
+
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM CHECKPOINT;
+
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM CHECKPOINT;
+
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM CHECKPOINT;
+
+System altered.
+
+SQL>
+
+System altered.
+
+SQL> SQL>
+System altered.
+
+SQL>
+
+System altered.
+
+SQL> SQL>
+System altered.
+
+SQL>
+System altered.
+
+SQL> SQL>
+System altered.
+
+SQL>
+
+System altered.
+
+SQL> SQL> SQL> SQL>
+SQL>
+SQL> SELECT group#, status
+FROM v$log
+ORDER BY group#;  2    3
+
+    GROUP# STATUS
+---------- ----------------
+         1 INACTIVE
+         2 CURRENT
+         3 INACTIVE
+         4 INACTIVE
+         5 INACTIVE
+         6 INACTIVE
+
+6 rows selected.
+
+ALTER DATABASE DROP LOGFILE GROUP 1;
+ALTER DATABASE DROP LOGFILE GROUP 3;
+
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM CHECKPOINT;
+
+SQL> SELECT group#, status
+FROM v$log
+ORDER BY group#;  2    3
+
+    GROUP# STATUS
+---------- ----------------
+         2 INACTIVE
+         4 CURRENT
+         5 INACTIVE
+         6 INACTIVE
+
+SQL> ALTER DATABASE DROP LOGFILE GROUP 2;
+
+Database altered.
+
+SQL> SELECT group#, member
+FROM v$logfile
+ORDER BY group#;  2    3
+
+    GROUP# MEMBER
+---------- ----------------------------------------------------------------------------------------------------
+         4 /u01/oradata/ORCLDB/redo04.log
+         5 /u01/oradata/ORCLDB/redo05.log
+         6 /u01/oradata/ORCLDB/redo06.log
+
+SQL> SELECT name
+FROM v$controlfile;  2
+
+NAME
+----------------------------------------------------------------------------------------------------
+/u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/control01.ctl
+/u01/app/oracle/product/19.0.0/db_1/myreco/ORCLDB/control02.ctl
+
+SQL> shutdown immediate;
+
+cp /u01/app/oracle/product/19.0.0/db_1/mydbfiles/ORCLDB/control01.ctl \
+   /u01/oradata/ORCLDB/control01.ctl
+
+cp /u01/app/oracle/product/19.0.0/db_1/myreco/ORCLDB/control02.ctl \
+   /u01/fra/ORCLDB/control02.ctl
+[oracle@oraclevm ~]$ ls -l /u01/oradata/ORCLDB/control01.ctl
+-rw-r-----. 1 oracle oinstall 18923520 Jun 30 03:41 /u01/oradata/ORCLDB/control01.ctl
+[oracle@oraclevm ~]$ ls -l /u01/fra/ORCLDB/control02.ctl
+-rw-r-----. 1 oracle oinstall 18923520 Jun 30 03:41 /u01/fra/ORCLDB/control02.ctl
+
+STARTUP NOMOUNT; 
+ALTER SYSTEM SET control_files='/u01/oradata/ORCLDB/control01.ctl','/u01/fra/ORCLDB/control02.ctl' SCOPE=SPFILE;  
+ORACLE instance shut down.
+SQL> startup;
+
+SQL> SELECT path
+FROM (
+    SELECT name path FROM v$datafile
+    UNION ALL
+    SELECT name FROM v$tempfile
+    UNION ALL
+    SELECT member FROM v$logfile
+    UNION ALL
+    SELECT name FROM v$controlfile
+)
+WHERE path LIKE '/u01/app/oracle/product/19.0.0/db_1%';  2    3    4    5    6    7    8    9   10   11
+
+no rows selected
+
+[oracle@oraclevm ~]$ ps -ef | grep pmon
+oracle     57067       1  0 03:44 ?        00:00:00 ora_pmon_orcl
+oracle     57427   56793  0 03:47 pts/1    00:00:00 grep --color=auto pmon
+[oracle@oraclevm ~]$ readlink /proc/57067/exe
+
+
+
+
+SQL> startup nomount;
+ORACLE instance started.
+
+ALTER SYSTEM SET db_recovery_file_dest='/u01/fra' SCOPE=SPFILE;
+SQL> shutdown immediate;
+ORA-01507: database not mounted
+ORACLE instance shut down.
+startup;
+
+SQL> shutdown immediate;
+
+mv /u01/app/oracle/product/19.0.0/db_1 \
+   /u01/app/oracle/product/19.0.0/db_1.old
+
+# tnsnames.ora
+[oracle@oraclevm ~]$ cp /u01/app/oracle/product/19.0.0/db_1.old/network/admin/tnsnames.ora $ORACLE_HOME/network/admin/
+
+# listener
+[oracle@oraclevm ~]$ lsnrctl status
+
+LSNRCTL for Linux: Version 19.0.0.0.0 - Production on 30-JUN-2026 03:59:27
+
+Copyright (c) 1991, 2026, Oracle.  All rights reserved.
+
+Connecting to (ADDRESS=(PROTOCOL=tcp)(HOST=)(PORT=1521))
+STATUS of the LISTENER
+------------------------
+Alias                     LISTENER
+Version                   TNSLSNR for Linux: Version 19.0.0.0.0 - Production
+Start Date                23-JUN-2026 07:30:02
+Uptime                    6 days 20 hr. 29 min. 25 sec
+Trace Level               off
+Security                  ON: Local OS Authentication
+SNMP                      OFF
+Listener Parameter File   /u01/app/oracle/product/19.0.0/db_1/network/admin/listener.ora
+Listener Log File         /u01/app/oracle/diag/tnslsnr/oraclevm/listener/alert/log.xml
+Listening Endpoints Summary...
+  (DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=oraclevm)(PORT=1521)))
+  (DESCRIPTION=(ADDRESS=(PROTOCOL=ipc)(KEY=EXTPROC1521)))
+The listener supports no services
+The command completed successfully
+
+[oracle@oraclevm ~]$ lsnrctl stop
+
+LSNRCTL for Linux: Version 19.0.0.0.0 - Production on 30-JUN-2026 03:59:42
+
+Copyright (c) 1991, 2026, Oracle.  All rights reserved.
+
+Connecting to (ADDRESS=(PROTOCOL=tcp)(HOST=)(PORT=1521))
+The command completed successfully
+[oracle@oraclevm ~]$ lsnrctl start
+
+LSNRCTL for Linux: Version 19.0.0.0.0 - Production on 30-JUN-2026 03:59:47
+
+Copyright (c) 1991, 2026, Oracle.  All rights reserved.
+
+Starting /u01/app/oracle/product/19.30.0/db_1/bin/tnslsnr: please wait...
+
+TNSLSNR for Linux: Version 19.0.0.0.0 - Production
+Log messages written to /u01/app/oracle/diag/tnslsnr/oraclevm/listener/alert/log.xml
+Listening on: (DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=oraclevm)(PORT=1521)))
+
+Connecting to (ADDRESS=(PROTOCOL=tcp)(HOST=)(PORT=1521))
+STATUS of the LISTENER
+------------------------
+Alias                     LISTENER
+Version                   TNSLSNR for Linux: Version 19.0.0.0.0 - Production
+Start Date                30-JUN-2026 03:59:48
+Uptime                    0 days 0 hr. 0 min. 1 sec
+Trace Level               off
+Security                  ON: Local OS Authentication
+SNMP                      OFF
+Listener Log File         /u01/app/oracle/diag/tnslsnr/oraclevm/listener/alert/log.xml
+Listening Endpoints Summary...
+  (DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=oraclevm)(PORT=1521)))
+The listener supports no services
+The command completed successfully
+
+[oracle@oraclevm product]$ rm -rf /u01/app/oracle/product/19.0.0/db_1
+
+# oracle home muutokset myös:
+
+root@oraclevm ~]# vi /usr/local/bin/start_oracle.sh
+[root@oraclevm ~]# vi /usr/local/bin/stop_oracle.sh
+
+# joutui putsaamaan myös vanhat rmanin muistelemat archive lokit
+# RMAN-06059: expected archived log not found, loss of archived log compromises recoverability
+# ORA-19625: error identifying file /u01/app/oracle/product/19.0.0/db_1/myreco/ORCLDB/archivelog/2026_06_23/o1_mf_1_58_o3pl36yb_.arc
+# ORA-27037: unable to obtain file status
+# Linux-x86_64 Error: 2: No such file or directory
+# Additional information: 7
+
+RMAN> CROSSCHECK ARCHIVELOG ALL;
+RMAN> DELETE EXPIRED ARCHIVELOG ALL;

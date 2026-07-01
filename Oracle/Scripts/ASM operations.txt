@@ -1,3 +1,4 @@
+col file_name format a50
 SELECT file_name, bytes/1024/1024/1024 AS current_gb,
        maxbytes/1024/1024/1024 AS max_gb,
        autoextensible
@@ -45,4 +46,51 @@ ADD DATAFILE
 SIZE 32766M
 AUTOEXTEND ON NEXT 1G MAXSIZE 32766M;
 
+set linesize 200
+col file_name format a60
+    SELECT
+        file_id,
+        file_name,
+        ROUND(bytes / 1024 / 1024 / 1024, 3) AS size_gb
+    FROM dba_data_files
+   ORDER BY file_id;
 
+   FILE_ID FILE_NAME                                                       SIZE_GB
+---------- ------------------------------------------------------------ ----------
+         1 +DATA19/SFIRERT/DATAFILE/system01.dbf                              .967
+         2 +DATA19/SFIRERT/DATAFILE/sysaux01.dbf                             1.201
+         3 +DATA19/SFIRERT/DATAFILE/undotbs01.dbf                             .347
+         4 +DATA19/SFIRERT/DATAFILE/undotbs02.dbf                             .283
+         5 +DATA19/SFIRERT/DATAFILE/users01.dbf                               .005
+         6 +DATA19/SFIRERT/DATAFILE/spotfire_action_data01.dbf                 3.5
+         7 +DATA19/SFIRERT/DATAFILE/spotfire_data01.dbf                         13
+         8 +DATA19/SFIRERT/DATAFILE/spotfire_data02.dbf                      12.25
+         9 +DATA19/SFIRERT/DATAFILE/perfstat01.dbf                             .25
+
+SQL> ALTER DATABASE MOVE DATAFILE '+DATA19/SFIRERT/DATAFILE/spotfire_data02.dbf'
+TO '+DIONYDATA';  2
+
+Database altered.
+
+
+        18 +POMS_DATA/MESESPP/pomsexeclargelx.dbf                           28.703
+        19 +POMS_DATA/MESESPP/pomsspecindex.dbf                             26.443
+        20 +POMS_DATA/MESESPP/pomsexecindex.dbf                             19.006
+
+ALTER DATABASE MOVE DATAFILE '+POMS_DATA/MESESPP/pomsexeclargelx.dbf'
+TO '+DATA/MESESPP/DATAFILE/pomsexeclargelx.dbf';
+
+ALTER DATABASE MOVE DATAFILE '+POMS_DATA/MESESPP/pomsspecindex.dbf'
+TO '+DATA/MESESPP/DATAFILE/pomsspecindex.dbf';
+
+ALTER DATABASE MOVE DATAFILE '+POMS_DATA/MESESPP/pomsexecindex.dbf'
+TO '+DATA/MESESPP/DATAFILE/pomsexecindex.dbf';
+
+SELECT 
+    name AS diskgroup_name,
+    ROUND(total_mb/1024,2) AS total_gb,
+    ROUND(free_mb/1024,2) AS free_gb,
+    ROUND((total_mb-free_mb)/1024,2) AS used_gb,
+    ROUND((free_mb/total_mb)*100,2) AS free_pct
+FROM v$asm_diskgroup
+WHERE name IN ('POMS_DATA','DATA');

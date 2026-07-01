@@ -1,0 +1,18 @@
+find /oracle_backup/NGP/rman/var -type f -mtime -14 | while read file; do
+  echo "=== Checking file: $file ==="
+
+  echo "Start:"
+  grep -i "Starting backup" "$file" | head -1
+
+  echo "End:"
+  grep -Ei "Finished.*backup" "$file"
+
+  echo "Errors:"
+  if grep -qEi "RMAN-|ORA-" "$file"; then
+    grep -Ei "RMAN-|ORA-" "$file"
+  else
+    echo "No errors found."
+  fi
+
+  echo ""
+done
