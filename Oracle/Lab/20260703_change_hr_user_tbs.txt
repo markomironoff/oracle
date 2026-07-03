@@ -1,0 +1,111 @@
+CREATE tablespace hr datafile '/u01/oradata/ORCLDB/pdb1/hr.dbf';
+
+ALTER USER HR DEFAULT TABLESPACE HR;
+
+ALTER TABLE HR.DEPARTMENTS MOVE TABLESPACE HR;
+ALTER TABLE HR.EMPLOYEES MOVE TABLESPACE HR;
+ALTER TABLE HR.JOBS MOVE TABLESPACE HR;
+ALTER TABLE HR.JOB_HISTORY MOVE TABLESPACE HR;
+ALTER TABLE HR.LOCATIONS MOVE TABLESPACE HR;
+ALTER TABLE HR.MANAGEMENT MOVE TABLESPACE HR;
+ALTER TABLE HR.REGIONS MOVE TABLESPACE HR;
+
+ALTER INDEX HR.COUNTRY_C_ID_PK      REBUILD TABLESPACE HR;
+ALTER INDEX HR.DEPT_ID_PK           REBUILD TABLESPACE HR;
+ALTER INDEX HR.DEPT_LOCATION_IX     REBUILD TABLESPACE HR;
+ALTER INDEX HR.EMP_DEPARTMENT_IX    REBUILD TABLESPACE HR;
+ALTER INDEX HR.EMP_EMAIL_UK         REBUILD TABLESPACE HR;
+ALTER INDEX HR.EMP_EMP_ID_PK        REBUILD TABLESPACE HR;
+ALTER INDEX HR.EMP_JOB_IX           REBUILD TABLESPACE HR;
+ALTER INDEX HR.EMP_MANAGER_IX       REBUILD TABLESPACE HR;
+ALTER INDEX HR.EMP_NAME_IX          REBUILD TABLESPACE HR;
+ALTER INDEX HR.JHIST_DEPARTMENT_IX  REBUILD TABLESPACE HR;
+ALTER INDEX HR.JHIST_EMPLOYEE_IX    REBUILD TABLESPACE HR;
+ALTER INDEX HR.JHIST_EMP_ID_ST_DATE_PK REBUILD TABLESPACE HR;
+ALTER INDEX HR.JHIST_JOB_IX         REBUILD TABLESPACE HR;
+ALTER INDEX HR.JOB_ID_PK            REBUILD TABLESPACE HR;
+ALTER INDEX HR.LOC_CITY_IX          REBUILD TABLESPACE HR;
+ALTER INDEX HR.LOC_COUNTRY_IX       REBUILD TABLESPACE HR;
+ALTER INDEX HR.LOC_ID_PK            REBUILD TABLESPACE HR;
+ALTER INDEX HR.LOC_STATE_PROVINCE_IX REBUILD TABLESPACE HR;
+ALTER INDEX HR.REG_ID_PK            REBUILD TABLESPACE HR;
+ALTER INDEX HR.SYS_C008730          REBUILD TABLESPACE HR;
+
+SELECT owner,
+       segment_name,
+       segment_type,
+       tablespace_name
+FROM dba_segments
+WHERE owner='HR'
+ORDER BY segment_type, segment_name;
+
+ALTER INDEX HR.SYS_C008730          REBUILD TABLESPACE HR;ALTER INDEX HR.COUNTRY_C_ID_PK            REBUILD TABLESPACE HR
+*
+ERROR at line 1:
+ORA-28650: Primary index on an IOT cannot be rebuilt
+
+
+SQL> ALTER TABLE HR.COUNTRIES MOVE TABLESPACE HR;
+
+Table altered.
+
+SQL> SELECT segment_name,
+       segment_type,
+       tablespace_name
+FROM dba_segments
+WHERE owner='HR'
+  AND segment_name='COUNTRY_C_ID_PK';  2    3    4    5    6
+
+SEGMENT_NAME
+--------------------------------------------------------------------------------
+SEGMENT_TYPE       TABLESPACE_NAME
+------------------ ------------------------------
+COUNTRY_C_ID_PK
+INDEX              HR
+
+SQL> r
+  1  SELECT owner,
+  2         segment_name,
+  3         segment_type,
+  4         tablespace_name
+  5  FROM dba_segments
+  6  WHERE owner='HR'
+  7* ORDER BY segment_type, segment_name
+
+OWNER SEGMENT_NAME                             SEGMENT_TYPE       TABLESPACE_NAME
+----- ---------------------------------------- ------------------ ------------------------------
+HR    COUNTRY_C_ID_PK                          INDEX              HR
+HR    DEPT_ID_PK                               INDEX              HR
+HR    DEPT_LOCATION_IX                         INDEX              HR
+HR    EMP_DEPARTMENT_IX                        INDEX              HR
+HR    EMP_EMAIL_UK                             INDEX              HR
+HR    EMP_EMP_ID_PK                            INDEX              HR
+HR    EMP_JOB_IX                               INDEX              HR
+HR    EMP_MANAGER_IX                           INDEX              HR
+HR    EMP_NAME_IX                              INDEX              HR
+HR    JHIST_DEPARTMENT_IX                      INDEX              HR
+HR    JHIST_EMPLOYEE_IX                        INDEX              HR
+
+OWNER SEGMENT_NAME                             SEGMENT_TYPE       TABLESPACE_NAME
+----- ---------------------------------------- ------------------ ------------------------------
+HR    JHIST_EMP_ID_ST_DATE_PK                  INDEX              HR
+HR    JHIST_JOB_IX                             INDEX              HR
+HR    JOB_ID_PK                                INDEX              HR
+HR    LOC_CITY_IX                              INDEX              HR
+HR    LOC_COUNTRY_IX                           INDEX              HR
+HR    LOC_ID_PK                                INDEX              HR
+HR    LOC_STATE_PROVINCE_IX                    INDEX              HR
+HR    REG_ID_PK                                INDEX              HR
+HR    SYS_C008730                              INDEX              HR
+HR    DEPARTMENTS                              TABLE              HR
+HR    EMPLOYEES                                TABLE              HR
+
+OWNER SEGMENT_NAME                             SEGMENT_TYPE       TABLESPACE_NAME
+----- ---------------------------------------- ------------------ ------------------------------
+HR    JOBS                                     TABLE              HR
+HR    JOB_HISTORY                              TABLE              HR
+HR    LOCATIONS                                TABLE              HR
+HR    MANAGEMENT                               TABLE              HR
+HR    REGIONS                                  TABLE              HR
+
+27 rows selected.
