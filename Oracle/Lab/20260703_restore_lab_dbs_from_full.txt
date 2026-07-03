@@ -1,0 +1,237 @@
+# restore lab db from last full
+
+[oracle@oraclevm backup]$ tar -xvzf Backup20260701.tar.gz
+
+rman target /
+LIST BACKUP SUMMARY;
+
+
+List of Backups
+===============
+Key     TY LV S Device Type Completion Time #Pieces #Copies Compressed Tag
+33      B  F  X DISK        01-JUL-26       1       1       YES        TAG20260701T064146
+34      B  F  X DISK        01-JUL-26       1       1       YES        TAG20260701T064146
+35      B  F  X DISK        01-JUL-26       1       1       YES        TAG20260701T064146
+36      B  F  A DISK        01-JUL-26       1       1       YES        TAG20260701T071134
+37      B  F  A DISK        01-JUL-26       1       1       YES        TAG20260701T071134
+38      B  F  A DISK        01-JUL-26       1       1       YES        TAG20260701T071134
+39      B  A  A DISK        01-JUL-26       1       1       YES        TAG20260701T072736
+40      B  F  A DISK        01-JUL-26       1       1       NO         TAG20260701T072828
+41      B  F  A DISK        03-JUL-26       1       1       NO         TAG20260703T051530
+
+
+RMAN> list backupset 33;
+list backupset 33;
+
+List of Backup Sets
+===================
+
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ ---------------
+33      Full    1.07G      DISK        00:06:15     01-JUL-26
+        BP Key: 33   Status: EXPIRED  Compressed: YES  Tag: TAG20260701T064146
+        Piece Name: /u01/app/oracle/backup/FULL_ORCLDB_124s3q9a_34_20260701.bkp
+  List of Datafiles in backup set 33
+  File LV Type Ckp SCN    Ckp Time  Abs Fuz SCN Sparse Name
+  ---- -- ---- ---------- --------- ----------- ------ ----
+  1       Full 4897456    01-JUL-26              NO    /u01/oradata/ORCLDB/system01.dbf
+  3       Full 4897456    01-JUL-26              NO    /u01/oradata/ORCLDB/sysaux01.dbf
+  4       Full 4897456    01-JUL-26              NO    /u01/oradata/ORCLDB/undotbs01.dbf
+  7       Full 4897456    01-JUL-26              NO    /u01/oradata/ORCLDB/users01.dbf
+
+
+RMAN> list backupset 34;
+list backupset 34;
+
+List of Backup Sets
+===================
+
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ ---------------
+34      Full    779.97M    DISK        00:04:19     01-JUL-26
+        BP Key: 34   Status: EXPIRED  Compressed: YES  Tag: TAG20260701T064146
+        Piece Name: /u01/app/oracle/backup/FULL_ORCLDB_134s3ql4_35_20260701.bkp
+  List of Datafiles in backup set 34
+  Container ID: 3, PDB Name: PDB1
+  File LV Type Ckp SCN    Ckp Time  Abs Fuz SCN Sparse Name
+  ---- -- ---- ---------- --------- ----------- ------ ----
+  9       Full 4898101    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/system01.dbf
+  10      Full 4898101    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/sysaux01.dbf
+  11      Full 4898101    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/undotbs01.dbf
+  12      Full 4898101    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/users01.dbf
+
+
+RMAN> list backupset 35;
+list backupset 35;
+
+List of Backup Sets
+===================
+
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ ---------------
+35      Full    829.60M    DISK        00:04:56     01-JUL-26
+        BP Key: 35   Status: EXPIRED  Compressed: YES  Tag: TAG20260701T064146
+        Piece Name: /u01/app/oracle/backup/FULL_ORCLDB_144s3qte_36_20260701.bkp
+  List of Datafiles in backup set 35
+  Container ID: 2, PDB Name: PDB$SEED
+  File LV Type Ckp SCN    Ckp Time  Abs Fuz SCN Sparse Name
+  ---- -- ---- ---------- --------- ----------- ------ ----
+  5       Full 4656767    30-JUN-26              NO    /u01/oradata/ORCLDB/pdbseed/system01.dbf
+  6       Full 4656767    30-JUN-26              NO    /u01/oradata/ORCLDB/pdbseed/sysaux01.dbf
+  8       Full 4656767    30-JUN-26              NO    /u01/oradata/ORCLDB/pdbseed/undotbs01.dbf
+
+
+RMAN> list backupset 36;
+list backupset 36;
+
+List of Backup Sets
+===================
+
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ ---------------
+36      Full    1.07G      DISK        00:05:57     01-JUL-26
+        BP Key: 36   Status: AVAILABLE  Compressed: YES  Tag: TAG20260701T071134
+        Piece Name: /u01/app/oracle/backup/FULL_ORCLDB_154s3s17_37_20260701.bkp
+  List of Datafiles in backup set 36
+  File LV Type Ckp SCN    Ckp Time  Abs Fuz SCN Sparse Name
+  ---- -- ---- ---------- --------- ----------- ------ ----
+  1       Full 4899807    01-JUL-26              NO    /u01/oradata/ORCLDB/system01.dbf
+  3       Full 4899807    01-JUL-26              NO    /u01/oradata/ORCLDB/sysaux01.dbf
+  4       Full 4899807    01-JUL-26              NO    /u01/oradata/ORCLDB/undotbs01.dbf
+  7       Full 4899807    01-JUL-26              NO    /u01/oradata/ORCLDB/users01.dbf
+
+
+RMAN> list backupset 37;
+list backupset 37;
+
+List of Backup Sets
+===================
+
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ ---------------
+37      Full    779.29M    DISK        00:04:37     01-JUL-26
+        BP Key: 37   Status: AVAILABLE  Compressed: YES  Tag: TAG20260701T071134
+        Piece Name: /u01/app/oracle/backup/FULL_ORCLDB_164s3scl_38_20260701.bkp
+  List of Datafiles in backup set 37
+  Container ID: 3, PDB Name: PDB1
+  File LV Type Ckp SCN    Ckp Time  Abs Fuz SCN Sparse Name
+  ---- -- ---- ---------- --------- ----------- ------ ----
+  9       Full 4900754    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/system01.dbf
+  10      Full 4900754    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/sysaux01.dbf
+  11      Full 4900754    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/undotbs01.dbf
+  12      Full 4900754    01-JUL-26              NO    /u01/oradata/ORCLDB/pdb1/users01.dbf
+
+
+RMAN> list backupset 38;
+list backupset 38;
+
+List of Backup Sets
+===================
+
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ ---------------
+38      Full    829.60M    DISK        00:05:01     01-JUL-26
+        BP Key: 38   Status: AVAILABLE  Compressed: YES  Tag: TAG20260701T071134
+        Piece Name: /u01/app/oracle/backup/FULL_ORCLDB_174s3slj_39_20260701.bkp
+  List of Datafiles in backup set 38
+  Container ID: 2, PDB Name: PDB$SEED
+  File LV Type Ckp SCN    Ckp Time  Abs Fuz SCN Sparse Name
+  ---- -- ---- ---------- --------- ----------- ------ ----
+  5       Full 4656767    30-JUN-26              NO    /u01/oradata/ORCLDB/pdbseed/system01.dbf
+  6       Full 4656767    30-JUN-26              NO    /u01/oradata/ORCLDB/pdbseed/sysaux01.dbf
+  8       Full 4656767    30-JUN-26              NO    /u01/oradata/ORCLDB/pdbseed/undotbs01.dbf
+
+
+RMAN> list backupset 39;
+list backupset 39;
+
+List of Backup Sets
+===================
+
+
+BS Key  Size       Device Type Elapsed Time Completion Time
+------- ---------- ----------- ------------ ---------------
+39      130.39M    DISK        00:00:38     01-JUL-26
+        BP Key: 39   Status: AVAILABLE  Compressed: YES  Tag: TAG20260701T072736
+        Piece Name: /u01/app/oracle/backup/Archivelogs_ORCLDB_184s3sv9_40_20260701.bkp
+
+  List of Archived Logs in backup set 39
+  Thrd Seq     Low SCN    Low Time  Next SCN   Next Time
+  ---- ------- ---------- --------- ---------- ---------
+  1    84      4656499    30-JUN-26 4762451    30-JUN-26
+  1    85      4762451    30-JUN-26 4818896    30-JUN-26
+  1    86      4818896    30-JUN-26 4876334    01-JUL-26
+  1    87      4876334    01-JUL-26 4898436    01-JUL-26
+  1    88      4898436    01-JUL-26 4902038    01-JUL-26
+
+
+RMAN> list backupset 40;
+list backupset 40;
+
+List of Backup Sets
+===================
+
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ ---------------
+40      Full    18.14M     DISK        00:00:02     01-JUL-26
+        BP Key: 40   Status: AVAILABLE  Compressed: NO  Tag: TAG20260701T072828
+        Piece Name: /u01/fra/ORCLDB/autobackup/2026_07_01/o1_mf_s_1237447708_o49ygxvz_.bkp
+  Control File Included: Ckp SCN: 4902102      Ckp time: 01-JUL-26
+  SPFILE Included: Modification time: 01-JUL-26
+  SPFILE db_unique_name: ORCLDB
+
+# 
+33  Full backup
+34  Full backup
+35  Full backup
+36  Full backup
+37  Full backup
+38  Full backup
+39  Archivelogs
+40  Controlfile + SPFILE
+#
+# halutaan 01-JUL-26 tilanteeseen
+rman target /
+
+startup nomount
+RESTORE CONTROLFILE FROM
+'/u01/fra/ORCLDB/autobackup/2026_07_01/o1_mf_s_1237447708_o49ygxvz_.bkp';
+alter database mount;
+RUN {
+SET UNTIL SCN 4902102;
+RESTORE DATABASE;
+RECOVER DATABASE;
+}
+
+# monitorointia:
+set linesize 300
+col opname format a40
+
+ SELECT
+       sid,
+      serial#,
+      opname,
+      sofar,
+      totalwork,
+      ROUND(sofar/totalwork*100,2) AS pct_complete,
+       elapsed_seconds,
+      time_remaining
+  FROM v$session_longops
+   WHERE opname LIKE 'RMAN%'
+   AND totalwork > 0
+  AND sofar <> totalwork;
+
+       SID    SERIAL# OPNAME                                        SOFAR  TOTALWORK PCT_COMPLETE ELAPSED_SECONDS TIME_REMAINING
+---------- ---------- ---------------------------------------- ---------- ---------- ------------ --------------- --------------
+         1      17998 RMAN: aggregate input                        593019     646880        91.67             682             62
+        43      18116 RMAN: full datafile restore                  196734     212960        92.38             261             22
+
+
+ALTER DATABASE OPEN RESETLOGS;

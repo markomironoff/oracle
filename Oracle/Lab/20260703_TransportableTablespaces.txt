@@ -1,0 +1,238 @@
+# transportable tablespaces
+
+# endianit
+
+SQL> COLUMN PLATFORM_NAME FORMAT A40
+COLUMN ENDIAN_FORMAT A14
+
+SELECT PLATFORM_ID, PLATFORM_NAME, ENDIAN_FORMAT
+  FROM V$TRANSPORTABLE_PLATFORM
+  ORDER BY PLATFORM_ID;
+
+PLATFORM_ID PLATFORM_NAME                            ENDIAN_FORMAT
+----------- ---------------------------------------- --------------
+          1 Solaris[tm] OE (32-bit)                  Big
+          2 Solaris[tm] OE (64-bit)                  Big
+          3 HP-UX (64-bit)                           Big
+          4 HP-UX IA (64-bit)                        Big
+          5 HP Tru64 UNIX                            Little
+          6 AIX-Based Systems (64-bit)               Big
+          7 Microsoft Windows IA (32-bit)            Little
+          8 Microsoft Windows IA (64-bit)            Little
+          9 IBM zSeries Based Linux                  Big
+         10 Linux IA (32-bit)                        Little
+         11 Linux IA (64-bit)                        Little
+         12 Microsoft Windows x86 64-bit             Little
+         13 Linux x86 64-bit                         Little
+         15 HP Open VMS                              Little
+         16 Apple Mac OS                             Big
+         17 Solaris Operating System (x86)           Little
+         18 IBM Power Based Linux                    Big
+         19 HP IA Open VMS                           Little
+         20 Solaris Operating System (x86-64)        Little
+         21 Apple Mac OS (x86-64)                    Little
+         22 Linux OS (S64)                           Big
+         23 Linux OS (AARCH64)                       Little
+
+# siirretään HR käyttäjän taulualue
+
+SELECT DISTINCT tablespace_name
+FROM dba_segments
+WHERE owner='HR;
+
+TABLESPACE_NAME
+------------------------------
+HR
+
+# luodaan uusi kanta, taulualue, käyttäjä
+
+CREATE PLUGGABLE DATABASE PDB2
+ADMIN USER pdbadmin IDENTIFIED BY "0racl3##" ROLES=(CONNECT)
+FILE_NAME_CONVERT=('/u01/oradata/ORCLDB/pdbseed/','/u01/oradata/ORCLDB/pdb2/');
+ALTER PLUGGABLE DATABASE PDB2 open;
+ALTER PLUGGABLE DATABASE PDB2 SAVE STATE;
+
+SQL> show pdbs;
+
+    CON_ID CON_NAME                       OPEN MODE  RESTRICTED
+---------- ------------------------------ ---------- ----------
+         2 PDB$SEED                       READ ONLY  NO
+         3 PDB1                           READ WRITE NO
+         4 PDB2                           READ WRITE NO
+
+SQL> create tablespace hrpdb2 datafile '/u01/oradata/ORCLDB/pdb2/hrpdb2.dbf' size 20m;
+Tablespace created.
+
+SQL> create user hr identified by hr default tablespace hrpdb2 temporary tablespace temp;
+User created.
+
+SQL> grant connect to hr;
+Grant succeeded.
+
+# siirrettävä tablespace read only
+
+SQL> alter session set container=PDB1;
+Session altered.
+
+SQL> ALTER TABLESPACE HR READ ONLY;
+Tablespace altered.
+
+# exp_hr_hr_tbs.par:
+DIRECTORY=expbup
+DUMPFILE=orcl_hr_hr_tbs.dmp
+LOGFILE=orcl_hr_hr_tbs.log
+TRANSPORT_TABLESPACES=hr
+EXCLUDE=TABLE_STATISTICS,INDEX_STATISTICS
+
+# ajetaan export
+[oracle@oraclevm export]$ expdp system/oracle@PDB1 PARFILE=exp_hr_hr_tbs.par
+
+Export: Release 19.0.0.0.0 - Production on Fri Jul 3 05:49:07 2026
+Version 19.31.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Starting "SYSTEM"."SYS_EXPORT_TRANSPORTABLE_01":  system/********@PDB1 PARFILE=exp_hr_hr_tbs.par
+Processing object type TRANSPORTABLE_EXPORT/PLUGTS_BLK
+Processing object type TRANSPORTABLE_EXPORT/POST_INSTANCE/PLUGTS_BLK
+Processing object type TRANSPORTABLE_EXPORT/TABLE
+Processing object type TRANSPORTABLE_EXPORT/GRANT/OWNER_GRANT/OBJECT_GRANT
+Processing object type TRANSPORTABLE_EXPORT/INDEX/INDEX
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/COMMENT
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/REF_CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/TRIGGER
+Master table "SYSTEM"."SYS_EXPORT_TRANSPORTABLE_01" successfully loaded/unloaded
+******************************************************************************
+Dump file set for SYSTEM.SYS_EXPORT_TRANSPORTABLE_01 is:
+  /home/oracle/export/orcl_hr_hr_tbs.dmp
+******************************************************************************
+Datafiles required for transportable tablespace HR:
+  /u01/oradata/ORCLDB/pdb1/hr.dbf
+Job "SYSTEM"."SYS_EXPORT_TRANSPORTABLE_01" successfully completed at Fri Jul 3 05:51:27 2026 elapsed 0 00:02:11
+
+# tablespacet takaisin read write ### EI VIELÄ ### ks. alempana
+[oracle@oraclevm export]$ sqlplus / as sysdba
+
+SQL*Plus: Release 19.0.0.0.0 - Production on Fri Jul 3 05:52:08 2026
+Version 19.31.0.0.0
+Copyright (c) 1982, 2026, Oracle.  All rights reserved.
+Connected to:
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.31.0.0.0
+
+SQL> alter session set container=PDB1;
+Session altered.
+SQL> alter tablespace hr read write;
+Tablespace altered.
+
+# ajetaan import
+
+SQL> alter session set container=PDB2;
+Session altered.
+
+SQL> create or replace directory expbup as '/home/oracle/export';
+Directory created.
+
+# import
+[oracle@oraclevm export]$ impdp system/oracle@PDB2 PARFILE=imp_hr_hr_tbs.par
+
+
+Import: Release 19.0.0.0.0 - Production on Fri Jul 3 06:04:57 2026
+Version 19.31.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Master table "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01" successfully loaded/unloaded
+Starting "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01":  system/********@PDB2 PARFILE=imp_hr_hr_tbs.par
+Processing object type TRANSPORTABLE_EXPORT/PLUGTS_BLK
+ORA-39123: Data Pump transportable tablespace job aborted
+ORA-19722: datafile /u01/oradata/ORCLDB/pdb1/hr.dbf is an incorrect version
+
+Job "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01" stopped due to fatal error at Fri Jul 3 06:05:33 2026 elapsed 0 00:00:20
+
+#
+# Transportable Tablespaces requires that the transported datafiles remain in the same read-only SCN state
+# liian aikaisin muutin PDB1 hr taulualueen read writeksi !!!!
+
+SQL> alter session set container=PDB1;
+
+Session altered.
+
+SQL> alter tablespace hr read only;
+
+Tablespace altered.
+
+[oracle@oraclevm export]$ rm -rf "/home/oracle/export/orcl_hr_hr_tbs.dmp"
+[oracle@oraclevm export]$ expdp system/oracle@PDB1 PARFILE=exp_hr_hr_tbs.par
+
+[oracle@oraclevm export]$ impdp system/oracle@PDB2 PARFILE=imp_hr_hr_tbs.par
+
+Processing object type TRANSPORTABLE_EXPORT/INDEX/INDEX
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/COMMENT
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/REF_CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/TRIGGER
+Processing object type TRANSPORTABLE_EXPORT/POST_INSTANCE/PLUGTS_BLK
+ORA-39082: Object type TRIGGER:"HR"."UPDATE_JOB_HISTORY" created with compilation warnings
+ORA-39082: Object type TRIGGER:"HR"."SECURE_EMPLOYEES" created with compilation warnings
+
+SQL> alter session set container=PDB2;
+
+Session altered.
+
+SQL> select tablespace_name from dba_tablespaces;
+
+TABLESPACE_NAME
+------------------------------
+SYSTEM
+SYSAUX
+UNDOTBS1
+TEMP
+HRPDB2
+HR
+
+  1* select username,default_tablespace from dba_users where username='HR'
+SQL> /
+
+USERNAME
+--------------------------------------------------------------------------------
+DEFAULT_TABLESPACE
+------------------------------
+HR
+HRPDB2
+
+SQL> alter user hr default tablespace hr;
+User altered.
+
+SQL> select status from dba_tablespaces where tablespace_name='HR';
+STATUS
+---------
+READ ONLY
+
+col file_name format a35
+col tablespace_name format a5
+
+  SELECT tablespace_name,
+         file_name,
+         bytes/1024/1024 AS mb
+  FROM dba_data_files
+  WHERE tablespace_name = 'HR'
+ ORDER BY file_name
+
+TABLE FILE_NAME                                   MB
+----- ----------------------------------- ----------
+HR    /u01/oradata/ORCLDB/pdb1/hr.dbf            100
+
+# kuten nähdään, pelkästään metadata siirtyi
+
+## jossain kohtaa kikkailua särkyi datafile PDB1
+
+SQL> ALTER TABLESPACE HR READ WRITE;
+``ALTER TABLESPACE HR READ WRITE
+*
+ERROR at line 1:
+ORA-01122: database file 13 failed verification check
+ORA-01110: data file 13: '/u01/oradata/ORCLDB/pdb1/hr.dbf'
