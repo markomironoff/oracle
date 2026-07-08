@@ -236,3 +236,460 @@ SQL> ALTER TABLESPACE HR READ WRITE;
 ERROR at line 1:
 ORA-01122: database file 13 failed verification check
 ORA-01110: data file 13: '/u01/oradata/ORCLDB/pdb1/hr.dbf'
+# palautettu backupista kanta alkutekijöilleen
+
+### tehdään ORCLDB2 kanta rinnalle ja sinne pdb2
+
+1    1630     SYSTEM               YES     /u01/oradata/ORCLDB/system01.dbf
+3    1360     SYSAUX               NO      /u01/oradata/ORCLDB/sysaux01.dbf
+4    375      UNDOTBS1             YES     /u01/oradata/ORCLDB/undotbs01.dbf
+5    950      PDB$SEED:SYSTEM      NO      /u01/oradata/ORCLDB/pdbseed/system01.dbf
+6    450      PDB$SEED:SYSAUX      NO      /u01/oradata/ORCLDB/pdbseed/sysaux01.dbf
+7    5        USERS                NO      /u01/oradata/ORCLDB/users01.dbf
+8    170      PDB$SEED:UNDOTBS1    NO      /u01/oradata/ORCLDB/pdbseed/undotbs01.dbf
+9    960      PDB1:SYSTEM          YES     /u01/oradata/ORCLDB/pdb1/system01.dbf
+10   470      PDB1:SYSAUX          NO      /u01/oradata/ORCLDB/pdb1/sysaux01.dbf
+11   175      PDB1:UNDOTBS1        YES     /u01/oradata/ORCLDB/pdb1/undotbs01.dbf
+12   58       PDB1:USERS           NO      /u01/oradata/ORCLDB/pdb1/users01.dbf
+13   100      PDB1:HR              NO      /u01/oradata/ORCLDB/pdb1/hr.dbf
+
+List of Temporary Files
+=======================
+File Size(MB) Tablespace           Maxsize(MB) Tempfile Name
+---- -------- -------------------- ----------- --------------------
+4    239      TEMP                 32767       /u01/oradata/ORCLDB/temp01.dbf
+5    239      PDB$SEED:TEMP        32767       /u01/oradata/ORCLDB/pdbseed/temp01.dbf
+6    239      PDB1:TEMP            32767       /u01/oradata/ORCLDB/pdb1/temp01.dbf
+
+rman target /
+
+startup nomount pfile='/u01/app/oracle/product/19.30.0/db_1/dbs/initorcl2.ora';
+RESTORE CONTROLFILE FROM '/u01/fra/ORCLDB/autobackup/2026_07_01/o1_mf_s_1237447708_o49ygxvz_.bkp';
+alter database mount;
+catalog start with '/u01/app/oracle/backup';
+
+RMAN-03002: failure of restore command at 07/07/2026 02:30:46
+RMAN-20208: UNTIL CHANGE is before RESETLOGS change
+RMAN Client Diagnostic Trace file : /u01/app/oracle/diag/clients/user_oracle/RMAN_1614310175_110/trace/ora_rman_2711_2.trc
+
+
+RMAN> list incarnation of database;
+list incarnation of database;
+
+List of Database Incarnations
+DB Key  Inc Key DB Name  DB ID            STATUS  Reset SCN  Reset Time
+------- ------- -------- ---------------- --- ---------- ----------
+1       1       ORCLDB   2649713320       PARENT  1          17-APR-19
+2       2       ORCLDB   2649713320       PARENT  1920977    06-OCT-25
+3       3       ORCLDB   2649713320       CURRENT 4902103    03-JUL-26
+
+
+RMAN> RESET DATABASE TO INCARNATION 2;
+RESET DATABASE TO INCARNATION 2;
+database reset to incarnation 2
+
+RUN {
+set newname for datafile 1 to '/u01/oradata/ORCLDB2/system01.dbf';
+set newname for datafile 3 to '/u01/oradata/ORCLDB2/sysaux01.dbf';
+set newname for datafile 4 to '/u01/oradata/ORCLDB2/undotbs01.dbf';
+set newname for datafile 5 to '/u01/oradata/ORCLDB2/pdbseed/system01.dbf';
+set newname for datafile 6 to '/u01/oradata/ORCLDB2/pdbseed/sysaux01.dbf';
+set newname for datafile 7 to '/u01/oradata/ORCLDB2/users01.dbf';
+set newname for datafile 8 to '/u01/oradata/ORCLDB2/pdbseed/undotbs01.dbf';
+set newname for datafile 9 to '/u01/oradata/ORCLDB2/pdb1/system01.dbf';
+set newname for datafile 10 to '/u01/oradata/ORCLDB2/pdb1/sysaux01.dbf';
+set newname for datafile 11 to '/u01/oradata/ORCLDB2/pdb1/undotbs01.dbf';
+set newname for datafile 12 to '/u01/oradata/ORCLDB2/pdb1/users01.dbf';
+set newname for datafile 13 to '/u01/oradata/ORCLDB2/pdb1/hr.dbf';
+set newname for tempfile 4 to '/u01/oradata/ORCLDB2/temp01.dbf';
+set newname for tempfile 5 to '/u01/oradata/ORCLDB2/pdbseed/temp01.dbf';
+set newname for tempfile 6 to '/u01/oradata/ORCLDB2/pdb1/temp01.dbf';
+SET UNTIL SCN 4902102;
+RESTORE DATABASE;
+switch datafile all;
+switch tempfile all;
+RECOVER DATABASE;
+}
+
+alter database rename file '/u01/oradata/ORCLDB/redo04.log' to '/u01/oradata/ORCLDB2/redo04.log';
+alter database rename file '/u01/oradata/ORCLDB/redo05.log' to '/u01/oradata/ORCLDB2/redo05.log';
+alter database rename file '/u01/oradata/ORCLDB/redo06.log' to '/u01/oradata/ORCLDB2/redo06.log';
+
+RMAN> alter database open resetlogs;
+
+shutdown immediate;
+startup mount;
+nid TARGET=/ DBNAME=ORCLDB2 SETNAME=YES
+
+# siirrettävä taulualue
+
+  1  SELECT DISTINCT tablespace_name
+  2  FROM dba_segments
+  3* WHERE owner='HR'
+SQL> /
+
+TABLESPACE_NAME
+------------------------------
+HR
+
+col file_name format a35
+col tablespace_name format a5
+
+  SELECT tablespace_name,
+         file_name,
+         bytes/1024/1024 AS mb
+  FROM dba_data_files
+  WHERE tablespace_name = 'HR'
+ ORDER BY file_name;
+ TABLE FILE_NAME                                   MB
+----- ----------------------------------- ----------
+HR    /u01/oradata/ORCLDB/pdb1/hr.dbf            100
+
+SQL> ALTER TABLESPACE HR READ ONLY;
+
+Tablespace altered.
+
+# exp_hr_hr_tbs.par:
+DIRECTORY=expbup
+DUMPFILE=orcl_hr_hr_tbs.dmp
+LOGFILE=orcl_hr_hr_tbs.log
+TRANSPORT_TABLESPACES=hr
+EXCLUDE=TABLE_STATISTICS,INDEX_STATISTICS
+
+# ajetaan export
+[oracle@oraclevm export]$ expdp system/oracle@PDB1 PARFILE=exp_hr_hr_tbs.par
+
+# import
+[oracle@oraclevm datapump]$ . oraenv
+ORACLE_SID = [orcl] ? orcl2
+
+alter session set container=pdb1;
+
+begin
+  dbms_service.create_service(
+    service_name => 'pdb1_orcldb2',
+    network_name => 'pdb1_orcldb2');
+end;
+/
+
+exec dbms_service.start_service('pdb1_orcldb2');
+
+SQL> alter system register;
+
+
+[oracle@oraclevm datapump]$ cat imp_hr_hr_tbs.par
+DIRECTORY=expbup
+DUMPFILE=orcl_hr_hr_tbs.dmp
+LOGFILE=imp_orcl_hr_hr_tbs.log
+TRANSPORT_DATAFILES='/u01/oradata/ORCLDB2/pdb1/hr.dbf'
+
+[oracle@oraclevm datapump]$ impdp system/oracle@PDB1_ORCLDB2 PARFILE=imp_hr_hr_tbs.par
+
+PDB1_ORCLDB2 = (DESCRIPTION =
+   (ADDRESS = (PROTOCOL = TCP)(HOST = oraclevm)(PORT = 1521))
+      (CONNECT_DATA =   (SERVICE_NAME = pdb1_orcldb2)    ) )
+	  
+ALTER SESSION SET CONTAINER=PDB1;
+
+SELECT name, network_name
+FROM v$active_services
+ORDER BY 1;
+
+EXEC DBMS_SERVICE.START_SERVICE('pdb1_orcldb2');
+
+ALTER SYSTEM REGISTER;
+
+CREATE OR REPLACE TRIGGER start_pdb1_orcldb2_service
+AFTER STARTUP ON DATABASE
+BEGIN
+  DBMS_SERVICE.START_SERVICE('pdb1_orcldb2');
+END;
+/
+
+# huom! directory on database kohtainen
+SQL> sqlplus / as sysdba
+
+alter session set container=pdb1;
+
+SELECT owner,
+       directory_name,
+       directory_path
+FROM dba_directories
+WHERE directory_name='EXPBUP';SP2-0734: unknown command beginning "sqlplus / ..." - rest of line ignored.
+SQL> SQL>
+Session altered.
+
+SQL> SQL>   2    3    4    5
+
+OWNER
+--------------------------------------------------------------------------------
+DIRECTORY_NAME
+--------------------------------------------------------------------------------
+DIRECTORY_PATH
+--------------------------------------------------------------------------------
+SYS
+EXPBUP
+/home/oracle/export
+
+
+SQL> create or replace directory EXPBUP as '/u01/app/oracle/backup/datapump';
+
+Directory created.
+
+[oracle@oraclevm datapump]$ impdp system/oracle@PDB1_ORCLDB2 PARFILE=imp_hr_hr_tbs.par
+
+Import: Release 19.0.0.0.0 - Production on Wed Jul 8 05:01:09 2026
+Version 19.31.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Master table "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01" successfully loaded/unloaded
+Starting "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01":  system/********@PDB1_ORCLDB2 PARFILE=imp_hr_hr_tbs.par
+Processing object type TRANSPORTABLE_EXPORT/PLUGTS_BLK
+ORA-39123: Data Pump transportable tablespace job aborted
+ORA-01565: error in identifying file '/u01/oradata/ORCLDB2/pdb1/hr.dbf'
+ORA-27037: unable to obtain file status
+Linux-x86_64 Error: 2: No such file or directory
+Additional information: 7
+ORA-27037: unable to obtain file status
+Linux-x86_64 Error: 2: No such file or directory
+Additional information: 7
+
+# täytyy kopioida datafile
+
+[oracle@oraclevm datapump]$ cp /u01/oradata/ORCLDB/pdb1/hr.dbf  /u01/oradata/ORCLDB2/pdb1/hr.dbf
+
+[oracle@oraclevm datapump]$ impdp system/oracle@PDB1_ORCLDB2 PARFILE=imp_hr_hr_tbs.par
+
+Import: Release 19.0.0.0.0 - Production on Wed Jul 8 05:05:07 2026
+Version 19.31.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Master table "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01" successfully loaded/unloaded
+Starting "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01":  system/********@PDB1_ORCLDB2 PARFILE=imp_hr_hr_tbs.par
+Processing object type TRANSPORTABLE_EXPORT/PLUGTS_BLK
+Processing object type TRANSPORTABLE_EXPORT/TABLE
+ORA-39151: Table "HR"."COUNTRIES" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+ORA-39151: Table "HR"."MANAGEMENT" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+ORA-39151: Table "HR"."LOCATIONS" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+ORA-39151: Table "HR"."JOBS" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+ORA-39151: Table "HR"."JOB_HISTORY" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+ORA-39151: Table "HR"."REGIONS" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+ORA-39151: Table "HR"."DEPARTMENTS" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+ORA-39151: Table "HR"."EMPLOYEES" exists. All dependent metadata and data will be skipped due to table_exists_action of skip
+
+Processing object type TRANSPORTABLE_EXPORT/GRANT/OWNER_GRANT/OBJECT_GRANT
+Processing object type TRANSPORTABLE_EXPORT/INDEX/INDEX
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/COMMENT
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/REF_CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/TRIGGER
+Processing object type TRANSPORTABLE_EXPORT/POST_INSTANCE/PLUGTS_BLK
+Job "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01" completed with 8 error(s) at Wed Jul 8 05:05:42 2026 elapsed 0 00:00:26
+
+SQL> alter session set container=PDB1;
+
+Session altered.
+
+SQL> SELECT file_name
+FROM dba_data_files
+WHERE tablespace_name='HR';  2    3
+
+FILE_NAME
+--------------------------------------------------------------------------------
+/u01/oradata/ORCLDB2/pdb1/hr.dbf
+
+# Virheet ovat normaaleja koska
+
+    SELECT owner,
+          table_name,
+           tablespace_name
+    FROM dba_tables
+    WHERE owner = 'HR'
+     AND table_name = 'EMPLOYEES'
+
+OWNER TABLE_NAME           TABLESPACE_NAME
+----- -------------------- ------------------------------
+HR    EMPLOYEES            SYSAUX
+
+# tehdään nyt vielä näin
+SQL> drop user hr cascade;
+DROP TABLESPACE HR INCLUDING CONTENTS KEEP DATAFILES;
+# itse asiassa pitää tehdä:
+[oracle@oraclevm datapump]$ rm -rf  /u01/oradata/ORCLDB2/pdb1/hr.dbf
+
+[oracle@oraclevm datapump]$ impdp system/oracle@PDB1_ORCLDB2 PARFILE=imp_hr_hr_tbs.par
+
+Import: Release 19.0.0.0.0 - Production on Wed Jul 8 05:18:18 2026
+Version 19.31.0.0.0
+
+Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.
+
+Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Master table "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01" successfully loaded/unloaded
+Starting "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01":  system/********@PDB1_ORCLDB2 PARFILE=imp_hr_hr_tbs.par
+Processing object type TRANSPORTABLE_EXPORT/PLUGTS_BLK
+Processing object type TRANSPORTABLE_EXPORT/TABLE
+Processing object type TRANSPORTABLE_EXPORT/GRANT/OWNER_GRANT/OBJECT_GRANT
+Processing object type TRANSPORTABLE_EXPORT/INDEX/INDEX
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/COMMENT
+Processing object type TRANSPORTABLE_EXPORT/CONSTRAINT/REF_CONSTRAINT
+Processing object type TRANSPORTABLE_EXPORT/TRIGGER
+Processing object type TRANSPORTABLE_EXPORT/POST_INSTANCE/PLUGTS_BLK
+ORA-39082: Object type TRIGGER:"HR"."UPDATE_JOB_HISTORY" created with compilation warnings
+
+ORA-39082: Object type TRIGGER:"HR"."SECURE_EMPLOYEES" created with compilation warnings
+
+Job "SYSTEM"."SYS_IMPORT_TRANSPORTABLE_01" completed with 2 error(s) at Wed Jul 8 05:18:58 2026 elapsed 0 00:00:34
+
+SHOW ERRORS TRIGGER HR.UPDATE_JOB_HISTORY;
+SHOW ERRORS TRIGGER HR.SECURE_EMPLOYEES;
+Session altered.
+
+SQL> SQL> Errors for TRIGGER HR.UPDATE_JOB_HISTORY:
+
+LINE/COL ERROR
+-------- -----------------------------------------------------------------
+2/3      PL/SQL: Statement ignored
+2/3      PLS-00201: identifier 'ADD_JOB_HISTORY' must be declared
+SQL>
+Errors for TRIGGER HR.SECURE_EMPLOYEES:
+
+LINE/COL ERROR
+-------- -----------------------------------------------------------------
+2/3      PL/SQL: Statement ignored
+2/3      PLS-00201: identifier 'SECURE_DML' must be declared
+
+# the triggers are invalid because their dependent procedures were not transported/imported.
+
+# orcldb pdb1
+
+SQL> SET LONG 100000
+SQL> set PAGESIZE 100
+SQL> set linesize 200
+SQL> SELECT DBMS_METADATA.GET_DDL(
+         'PROCEDURE',
+         'ADD_JOB_HISTORY',
+         'HR')
+FROM dual;  2    3    4    5
+
+DBMS_METADATA.GET_DDL('PROCEDURE','ADD_JOB_HISTORY','HR')
+--------------------------------------------------------------------------------
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "HR"."ADD_JOB_HISTORY"
+  (  p_emp_id          job_history.employee_id%type
+   , p_start_date      job_history.start_date%type
+   , p_end_date        job_history.end_date%type
+   , p_job_id          job_history.job_id%type
+   , p_department_id   job_history.department_id%type
+   )
+IS
+BEGIN
+  INSERT INTO job_history (employee_id, start_date, end_date,
+                           job_id, department_id)
+    VALUES(p_emp_id, p_start_date, p_end_date, p_job_id, p_department_id);
+END add_job_history;
+
+
+DBMS_METADATA.GET_DDL('PROCEDURE','SECURE_DML','HR')
+--------------------------------------------------------------------------------
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "HR"."SECURE_DML"
+IS
+BEGIN
+  IF TO_CHAR (SYSDATE, 'HH24:MI') NOT BETWEEN '08:00' AND '18:00'
+        OR TO_CHAR (SYSDATE, 'DY') IN ('SAT', 'SUN') THEN
+        RAISE_APPLICATION_ERROR (-20205,
+                'You may only make changes during normal office hours');
+  END IF;
+END secure_dml;
+
+# orcldb2 pdb1
+
+SQL>   CREATE OR REPLACE EDITIONABLE PROCEDURE "HR"."SECURE_DML"
+IS
+BEGIN
+  IF TO_CHAR (SYSDATE, 'HH24:MI') NOT BETWEEN '08:00' AND '18:00'
+        OR TO_CHAR (SYSDATE, 'DY') IN ('SAT', 'SUN') THEN
+        RAISE_APPLICATION_ERROR (-20205,
+                'You may only make changes during normal office hours');
+  END IF;
+END secure_dml;  2    3    4    5    6    7    8    9
+ 10  /
+
+Procedure created.
+
+SQL>   CREATE OR REPLACE EDITIONABLE PROCEDURE "HR"."ADD_JOB_HISTORY"
+  (  p_emp_id          job_history.employee_id%type
+   , p_start_date      job_history.start_date%type
+   , p_end_date        job_history.end_date%type
+   , p_job_id          job_history.job_id%type
+   , p_department_id   job_history.department_id%type
+   )
+IS
+BEGIN
+  INSERT INTO job_history (employee_id, start_date, end_date,
+                           job_id, department_id)
+    VALUES(p_emp_id, p_start_date, p_end_date, p_job_id, p_department_id);
+END add_job_history;  2    3    4    5    6    7    8    9   10   11   12   13
+ 14  /
+
+Procedure created.
+
+ALTER TRIGGER HR.UPDATE_JOB_HISTORY COMPILE;
+ALTER TRIGGER HR.SECURE_EMPLOYEES COMPILE;
+
+SQL>  SELECT object_name,
+       object_type,
+       status
+FROM dba_objects
+WHERE owner='HR'
+  AND status='INVALID';  2    3    4    5    6
+
+no rows selected
+
+# change default tablespace
+ALTER USER HR DEFAULT TABLESPACE HR;
+
+# siirrettäviä objecteja ei ollut USERS taulualueelle
+# joka oli default tablespace tätä aiemmin
+SQL> SELECT table_name
+FROM dba_tables
+WHERE owner='HR'
+  AND tablespace_name='USERS'
+ORDER BY table_name;
+  2    3    4    5
+no rows selected
+
+SQL> SELECT index_name
+FROM dba_indexes
+WHERE owner='HR'
+  AND tablespace_name='USERS'
+ORDER BY index_name;  2    3    4    5
+
+no rows selected
+
+SQL> SELECT segment_name,
+       segment_type,
+       tablespace_name
+FROM dba_segments
+WHERE owner='HR'
+  AND tablespace_name='USERS'
+ORDER BY segment_type, segment_name;  2    3    4    5    6    7
+
+no rows selected
+
+# otetaan talteen orcldb 
+rman target / cmdfile=/home/oracle/rman_backup_full_plus_archivelog.sql log=/tmp/rman_backup.log
+tar -czvf Backup20260708.tar.gz *.bkp
