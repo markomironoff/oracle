@@ -1,0 +1,24 @@
+postgres=# SELECT pid,
+postgres-#        usename,
+postgres-#        datname,
+postgres-#        client_addr,
+postgres-#        now() - xact_start AS txn_age,
+postgres-#        state
+postgres-# FROM pg_stat_activity
+postgres-# WHERE state = 'idle in transaction'
+postgres-# ORDER BY xact_start;
+ pid | usename | datname | client_addr | txn_age | state
+-----+---------+---------+-------------+---------+-------
+(0 rows)
+
+
+postgres=# SELECT pid,
+postgres-#        usename,
+postgres-#        datname,
+postgres-#        client_addr,
+postgres-#        state,
+postgres-#        xact_start,
+postgres-#        now() - xact_start AS txn_age,
+postgres-#        query
+postgres-# FROM pg_stat_activity
+postgres-# WHERE pid = 13059;
