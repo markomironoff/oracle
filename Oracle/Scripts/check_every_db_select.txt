@@ -1,0 +1,24 @@
+#!/bin/bash
+
+export ORAENV_ASK=NO
+
+for SID in $(ps -ef | awk '/ora_smon_/ && !/grep/ {
+    sub(/^ora_smon_/,"",$8);
+    print $8
+}')
+do
+    [[ "$SID" == +ASM* ]] && continue
+
+    export ORACLE_SID=$SID
+    . oraenv >/dev/null 2>&1
+
+    COUNT=$(sqlplus -s / as sysdba <<EOF
+set pages 0 feedback off heading off
+select count(*) from dba_objects where object_name='DBMS_CLOUD';
+exit
+EOF
+)
+
+    echo "$SID : $COUNT"
+
+done
