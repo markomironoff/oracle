@@ -1,0 +1,420 @@
+CREATE USER hr IDENTIFIED BY hr;
+GRANT CONNECT, RESOURCE TO hr;
+
+-- Connect as HR
+CONNECT hr/hr;
+
+
+SQL> alter session set container=PDB1
+  2  ;
+
+Session altered.
+
+SQL> ALTER SYSTEM REGISTER;
+
+System altered.
+
+SQL> !lsnrctl services LISTENER2
+
+LSNRCTL for Linux: Version 23.26.1.0.0 - Production on 07-AUG-2026 13:37:43
+
+Copyright (c) 1991, 2026, Oracle.  All rights reserved.
+
+Connecting to (DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=ora23ai)(PORT=1526)))
+Services Summary...
+Service "4a276ea44d125501e0650a0027e01832" has 1 instance(s).
+  Instance "orcl26ai", status READY, has 1 handler(s) for this service...
+    Handler(s):
+      "DEDICATED" established:0 refused:0 state:ready
+         LOCAL SERVER
+Service "orcl26ai" has 1 instance(s).
+  Instance "ORCLPDB3", status UNKNOWN, has 1 handler(s) for this service...
+    Handler(s):
+      "DEDICATED" established:0 refused:0
+         LOCAL SERVER
+Service "pdb1" has 1 instance(s).
+  Instance "orcl26ai", status READY, has 1 handler(s) for this service...
+    Handler(s):
+      "DEDICATED" established:0 refused:0 state:ready
+         LOCAL SERVER
+The command completed successfully
+
+
+täytyy enabloida quota
+SQL> alter user hr quota unlimited on users;
+
+SQL> conn hr/hr@PDB1
+Connected.
+
+INSERT INTO management VALUES (1, 'John',    'Smith',    'CEO',              250000);
+INSERT INTO management VALUES (2, 'Sarah',   'Johnson',  'CFO',              220000);
+INSERT INTO management VALUES (3, 'Michael', 'Brown',    'CTO',              230000);
+INSERT INTO management VALUES (4, 'Emma',    'Davis',    'HR Director',      180000);
+INSERT INTO management VALUES (5, 'David',   'Wilson',   'Operations Manager',150000);
+INSERT INTO management VALUES (6, 'Olivia',  'Taylor',   'IT Manager',       145000);
+INSERT INTO management VALUES (7, 'James',   'Anderson', 'Finance Manager',  140000);
+INSERT INTO management VALUES (8, 'Sophia',  'Thomas',   'Sales Director',   175000);
+INSERT INTO management VALUES (9, 'Daniel',  'Moore',    'Marketing Director',170000);
+INSERT INTO management VALUES (10,'Isabella','Martin',   'Project Manager',  130000);
+
+COMMIT;
+
+SQL> conn / as sysdba
+Connected.
+SQL> SHOW CON_NAME;
+
+SELECT flashback_on
+FROM v$database;
+CON_NAME
+------------------------------
+CDB$ROOT
+SQL> SQL>   2
+
+FLASHBACK_ON
+------------------
+NO
+
+SQL> SHOW PARAMETER db_recovery_file_dest;
+
+SHOW PARAMETER db_recovery_file_dest_size;
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+db_recovery_file_dest                string      /u01/app/oracle/fast_recovery_
+                                                 area
+db_recovery_file_dest_size           big integer 14802M
+SQL> SQL>
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+db_recovery_file_dest_size           big integer 14802M
+SQL>
+
+SQL> shutdown immediate;
+Database closed.
+Database dismounted.
+ORACLE instance shut down.
+SQL> startup mount;
+ORACLE instance started.
+
+Total System Global Area 2408683816 bytes
+Fixed Size                  5011752 bytes
+Variable Size             704643072 bytes
+Database Buffers         1694498816 bytes
+Redo Buffers                4530176 bytes
+Database mounted.
+SQL> ALTER DATABASE FLASHBACK ON;
+
+
+Database altered.
+
+SQL> SQL>
+SQL> alter database open;
+
+Database altered.
+
+SQL> SELECT flashback_on
+FROM v$database;  2
+
+FLASHBACK_ON
+------------------
+YES
+
+SQL> SHOW PARAMETER db_flashback_retention_target;
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+db_flashback_retention_target        integer     1440
+SQL> SELECT oldest_flashback_scn,
+       oldest_flashback_time
+FROM v$flashback_database_log;  2    3
+
+OLDEST_FLASHBACK_SCN OLDEST_FL
+-------------------- ---------
+             9166561 07-AUG-26
+
+SQL> SELECT
+  2      ROUND(space_limit/1024/1024)       AS mb_limit,
+    ROUND(space_used/1024/1024)        AS mb_used,
+    ROUND(space_reclaimable/1024/1024) AS mb_reclaimable
+FROM v$recovery_file_dest;  3    4    5
+
+  MB_LIMIT    MB_USED MB_RECLAIMABLE
+---------- ---------- --------------
+     14802       6065            999
+
+SQL> CREATE RESTORE POINT before_demo
+GUARANTEE FLASHBACK DATABASE;  2
+
+Restore point created.
+
+SQL> SELECT name, guarantee_flashback_database
+  2  FROM v$restore_point;
+
+NAME
+--------------------------------------------------------------------------------
+GUA
+---
+BEFORE_DEMO
+YES
+
+SQL> ALTER SESSION SET CONTAINER=PDB1;
+
+Session altered.
+
+SQL> DELETE FROM hr.management;
+COMMIT;
+10 rows deleted.
+
+SQL>
+
+Commit complete.
+
+[oracle@ora23ai ~]$ sqlplus hr/hr@pdb1;
+
+SQL*Plus: Release 23.26.1.0.0 - Production on Fri Aug 7 13:53:50 2026
+Version 23.26.1.0.0
+
+Copyright (c) 1982, 2025, Oracle.  All rights reserved.
+
+Last Successful login time: Fri Aug 07 2026 13:42:31 +03:00
+
+Connected to:
+Oracle AI Database 26ai Enterprise Edition Release 23.26.1.0.0 - Production
+Version 23.26.1.0.0
+
+SQL> select * from management;
+
+no rows selected
+
+SQL> FLASHBACK DATABASE TO RESTORE POINT before_demo;
+``FLASHBACK DATABASE TO RESTORE POINT before_demo
+*
+ERROR at line 1:
+ORA-38757: Database must be mounted and not open to FLASHBACK.
+Help: https://docs.oracle.com/error-help/db/ora-38757/
+
+SQL> shutdown immediate;
+Database closed.
+Database dismounted.
+ORACLE instance shut down.
+SQL> startup mount;
+ORACLE instance started.
+
+Total System Global Area 2408683816 bytes
+Fixed Size                  5011752 bytes
+Variable Size             704643072 bytes
+Database Buffers         1694498816 bytes
+Redo Buffers                4530176 bytes
+Database mounted.
+SQL> FLASHBACK DATABASE TO RESTORE POINT before_demo;
+
+Flashback complete.
+
+SQL> alter database open;
+alter database open
+*
+ERROR at line 1:
+ORA-01589: must use RESETLOGS or NORESETLOGS option for database open
+Help: https://docs.oracle.com/error-help/db/ora-01589/
+
+
+SQL> alter database open resetlogs;
+alter database open resetlogs
+*
+ERROR at line 1:
+ORA-00450: background process 'CJQ0' did not start
+ORA-00444: background process "CJQ0" failed while starting
+ORA-00020: exceeded maximum number of processes specified in initialization
+parameter
+Help: https://docs.oracle.com/error-help/db/ora-00450/
+
+
+SQL> SHOW PARAMETER processes;
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+aq_tm_processes                      integer     1
+db_writer_processes                  integer     1
+gcs_server_processes                 integer     0
+global_txn_processes                 integer     1
+job_queue_processes                  integer     20
+log_archive_max_processes            integer     4
+processes                            integer     100
+
+SQL> ed
+Wrote file afiedt.buf
+
+  1  SELECT resource_name,
+  2         current_utilization,
+  3         max_utilization,
+  4         limit_value
+  5  FROM v$resource_limit
+  6* WHERE resource_name = 'processes'
+SQL> /
+
+RESOURCE_NAME
+--------------------------------------------------------------------------------
+CURRENT_UTILIZATION MAX_UTILIZATION LIMIT_VALU
+------------------- --------------- ----------
+processes
+                 97              98        100
+SQL> ALTER SYSTEM SET processes=300 SCOPE=SPFILE;
+
+System altered.
+
+SQL> shutdown immediate;
+Database closed.
+Database dismounted.
+ORACLE instance shut down.
+SQL> startup mount;
+ORACLE instance started.
+
+Total System Global Area 2408683816 bytes
+Fixed Size                  5011752 bytes
+Variable Size             704643072 bytes
+Database Buffers         1694498816 bytes
+Redo Buffers                4530176 bytes
+Database mounted.
+SQL> alter database open resetlogs;
+alter database open resetlogs
+*
+ERROR at line 1:
+ORA-01139: RESETLOGS option only valid after an incomplete database recovery
+Help: https://docs.oracle.com/error-help/db/ora-01139/
+
+
+SQL> FLASHBACK DATABASE TO RESTORE POINT before_demo;
+
+Flashback complete.
+
+SQL> alter database open resetlogs;
+
+Database altered.
+
+
+SQL> show pdbs;
+
+    CON_ID CON_NAME                       OPEN MODE  RESTRICTED
+---------- ------------------------------ ---------- ----------
+         2 PDB$SEED                       READ ONLY  NO
+         3 PDB1                           READ WRITE NO
+         4 PDB2                           READ WRITE NO
+         5 ORCLPDB3                       MOUNTED
+SQL> conn hr/hr@pdb1;
+Connected.
+SQL> select * from management;
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+         1 John
+Smith
+CEO                                                    250000
+
+         2 Sarah
+Johnson
+CFO                                                    220000
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+
+         3 Michael
+Brown
+CTO                                                    230000
+
+         4 Emma
+Davis
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+HR Director                                            180000
+
+         5 David
+Wilson
+Operations Manager                                     150000
+
+         6 Olivia
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+Taylor
+IT Manager                                             145000
+
+         7 James
+Anderson
+Finance Manager                                        140000
+
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+         8 Sophia
+Thomas
+Sales Director                                         175000
+
+         9 Daniel
+Moore
+Marketing Director                                     170000
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+
+        10 Isabella
+Martin
+Project Manager                                        130000
+
+
+10 rows selected.
+
+Flashback Databasen idea on, että se on huomattavasti nopeampi ja kevyempi kuin restore/recover.
+
+RMAN:
+
+lukee varmuuskopiot levyltä/nauhalta
+palauttaa datafilut
+ajaa archived redot eteenpäin
+voi kestää minuuteista tunteihin
+
+Flashback
+Oracle käyttää FRA:ssa olevia flashback logeja ja "kelaa aikaa taaksepäin".
+
+Tyypillisesti:
+
+ei palauteta backuppeja
+ei lueta datafilejä varmistuksista
+erittäin nopea
+minuutteja tai sekunteja
+
+Analogia, Yksinkertainen vertaus
+
+Ajattele videota:
+
+RMAN
+
+Hae eilinen videokopio arkistosta ja toista kaikki tapahtumat uudelleen haluttuun pisteeseen asti.
+
+Flashback Database
+
+Paina videon "rewind"-nappia.

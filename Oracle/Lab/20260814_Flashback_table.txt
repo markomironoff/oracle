@@ -1,0 +1,116 @@
+SQL> delete from management;
+
+10 rows deleted.
+
+SQL> commit;
+
+Commit complete.
+
+SQL> flashback table management to timestamp (systimestamp - interval '10' minute);
+flashback table management to timestamp (systimestamp - interval '10' minute)
+                *
+ERROR at line 1:
+ORA-08189: cannot flashback the table because row movement is not enabled
+Help: https://docs.oracle.com/error-help/db/ora-08189/
+
+
+SQL> ALTER TABLE management ENABLE ROW MOVEMENT;
+
+Table altered.
+
+SQL> flashback table management to timestamp (systimestamp - interval '10' minute);
+
+
+Flashback complete.
+
+SQL> SQL>
+SQL>
+SQL> select * from management;
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+         1 John
+Smith
+CEO                                                    250000
+
+         2 Sarah
+Johnson
+CFO                                                    220000
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+
+         3 Michael
+Brown
+CTO                                                    230000
+
+         4 Emma
+Davis
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+HR Director                                            180000
+
+         5 David
+Wilson
+Operations Manager                                     150000
+
+         6 Olivia
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+Taylor
+IT Manager                                             145000
+
+         7 James
+Anderson
+Finance Manager                                        140000
+
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+         8 Sophia
+Thomas
+Sales Director                                         175000
+
+         9 Daniel
+Moore
+Marketing Director                                     170000
+
+        ID FIRSTNAME
+---------- --------------------------------------------------
+LASTNAME
+--------------------------------------------------
+POSITION                                               SALARY
+-------------------------------------------------- ----------
+
+        10 Isabella
+Martin
+Project Manager                                        130000
+
+
+10 rows selected.
+
+SQL> ALTER TABLE management disable row movement;
+
+Table altered.
